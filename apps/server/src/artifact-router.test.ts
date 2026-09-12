@@ -58,4 +58,21 @@ describe('durable artifact review routes',()=>{
   const store=new UpgradeStore(db);await db.transaction(q=>store.save({id:'interrupted',kind:'artifact_operation',missionId,revision:1,data:{state:'running',runtimeId:'previous-process'}},scope,q));
   const listed=await (await request(`/missions/${missionId}/artifact-plans`)).json();expect(listed.operations.find((x:{id:string})=>x.id==='interrupted').data.state).toBe('outcome_unknown');
  });
+ it('reconciles a retained document ID with serialized plain text and persists verification',async()=>{
+  const m=await service.create(scope);const store=new UpgradeStore(db);
+  const created=await request(`/missions/${m.id}/artifact-plans`,{outcome:'Reconcile existing document',operations:[{id:'doc',app:'docs',action:'create',title:'Review',content:'Approved facts',sourceSnapshotIds:[]}]});
+  const plan=await created.json();expect(created.status).toBe(201);
+  const providerId='fixture-existing-document';const operationId=`${plan.id}_doc`;
+  const content=JSON.stringify({type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Approved facts'}]}]});
+  await db.transaction(async q=>{
+   await store.save({id:providerId,kind:'fixture_artifact',missionId:m.id,revision:1,data:{id:providerId,app:'docs',title:'Review',content,fingerprint:'observed',url:null,mode:'fixture',verifiedAt:now,state:'verified'}},scope,q);
+   await store.save({id:operationId,kind:'artifact_operation',missionId:m.id,revision:1,data:{state:'outcome_unknown',providerId,planId:plan.id}},scope,q);
+  });
+  const execute=vi.spyOn(FixtureWorkspaceProvider.prototype,'execute');
+  try{
+   const response=await request(`/missions/${m.id}/artifact-operations/${operationId}/reconcile`,{});expect(response.status).toBe(200);
+   expect(await response.json()).toMatchObject({state:'verified',code:'readback_verified',artifact:{id:providerId}});
+   expect((await store.get<{state:string}>(operationId,'artifact_operation',scope)).data.state).toBe('verified');expect(execute).not.toHaveBeenCalled();
+  }finally{execute.mockRestore();}
+ });
 });

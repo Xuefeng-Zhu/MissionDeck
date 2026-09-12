@@ -52,6 +52,19 @@ export class AmbiguousWorkspaceProvider implements WorkspaceProvider {
   return this.record(app,body);
  }
  async readResult(op:ArtifactOperation,objectId:string,authority:ArtifactAuthority):Promise<WorkspaceArtifact>{
+  if(op.app==='docs'){
+   id.parse(objectId);
+   if(!authority.allowedTargetIds.includes(objectId))throw new ProviderError('failed','target_scope','Select the returned document before reconciliation.');
+   try{
+    if(op.action==='update'&&op.targetId!==objectId)throw new Error('Different update target');
+    const raw=await this.request(`/api/documents/${objectId}`);
+    const document=z.object({id:z.literal(objectId),type:z.literal('doc'),visibility:z.literal('restricted'),title:z.literal(op.title),content:z.string()}).parse(raw);
+    if(!matchesDocumentText(document.content,op.content))throw new Error('Document content differs');
+    // Verify approved fields, not write/read response decorations such as import_warnings
+    // and comments. Retain the complete GET fingerprint for later conflict checks.
+    return this.record('docs',raw);
+   }catch{throw new ProviderError('outcome_unknown','readback_unconfirmed','The document write was accepted but read-back was not confirmed.',objectId);}
+  }
   if(op.app!=='chat')return this.read(op.app,objectId,authority);
   id.parse(objectId);id.parse(op.targetId);
   if(!authority.allowedTargetIds.includes(objectId)||!authority.allowedTargetIds.includes(op.targetId!))throw new ProviderError('failed','target_scope','Select the original channel and returned message before reconciliation.');
@@ -101,10 +114,10 @@ export class AmbiguousWorkspaceProvider implements WorkspaceProvider {
   if(op.app!=='docs'||!['create','update'].includes(op.action))throw new ProviderError('failed','unsupported_write',WORKSPACE_CAPABILITIES.find(c=>c.app===op.app)?.blocker??'This write is not implemented.');
   if(op.action==='update'){
    if(!op.replacementApproved)throw new ProviderError('failed','replacement_review','Full document replacement requires explicit full-diff approval.');
-   const raw=await this.request(`/api/documents/${op.targetId}`) as {visibility?:string;can_edit?:boolean};
-   if(raw.visibility!=='restricted'||raw.can_edit!==true)throw new ProviderError('failed','audience_unverified','Only editable restricted documents can be replaced; review broader audiences separately.');
+   const raw=await this.request(`/api/documents/${op.targetId}`) as {type?:string;visibility?:string;can_edit?:boolean};
+   if(raw.type!=='doc'||raw.visibility!=='restricted'||raw.can_edit!==true)throw new ProviderError('failed','audience_unverified','Only editable restricted documents can be replaced; review broader audiences separately.');
    const before=this.record('docs',raw);
-   if(before.fingerprint!==op.expectedFingerprint)throw new ProviderError('conflict','target_changed','Document changed after review. Human edits were preserved.');
+   if(before.id!==op.targetId||before.fingerprint!==op.expectedFingerprint)throw new ProviderError('conflict','target_changed','Document changed after review. Human edits were preserved.');
   }
   // Schema-confirmed restricted creation. Recheck this exact reviewed schema before each live write.
   const schemaResponse=await (this.options.fetch??fetch)('https://app.ambiguous.ai/api/openapi.json',{redirect:'error',signal:AbortSignal.timeout(12000)});
@@ -112,12 +125,9 @@ export class AmbiguousWorkspaceProvider implements WorkspaceProvider {
   if(!schemaResponse.ok||!schema.paths?.[op.action==='create'?'/api/documents':'/api/documents/{id}']?.[op.action==='create'?'post':'patch'])throw new ProviderError('failed','schema_changed','Reviewed document endpoint is unavailable.');
   const body=await this.request(op.action==='create'?'/api/documents':`/api/documents/${op.targetId}`,op.action==='create'?'POST':'PATCH',{title:op.title,content:op.content,...(op.action==='create'?{type:'doc',visibility:'restricted'}:{})});
   let accepted:WorkspaceArtifact;
-  try {accepted=this.record('docs',body);}catch{throw new ProviderError('outcome_unknown','invalid_write_response','Write acknowledgment has no verifiable artifact. Inspect before retrying.');}
-  try {
-   const observed=await this.read('docs',accepted.id,{...authority,allowedTargetIds:[...authority.allowedTargetIds,accepted.id]});
-   if(observed.fingerprint!==accepted.fingerprint||observed.title!==op.title||!matchesDocumentText(observed.content,op.content))throw new Error('Read-back differs or authoring conversion requires review');
-   return observed;
-  }catch{throw new ProviderError('outcome_unknown','readback_unconfirmed','The document write was accepted but read-back was not confirmed.',accepted.id);}
+  try {accepted=this.record('docs',body);}catch{throw new ProviderError('outcome_unknown','invalid_write_response','Write acknowledgment has no verifiable artifact. Inspect before retrying.',op.targetId);}
+  if(op.action==='update'&&accepted.id!==op.targetId)throw new ProviderError('outcome_unknown','readback_unconfirmed','The document update returned a different ID. Inspect the original document before retrying.',op.targetId);
+  return this.readResult(op,accepted.id,{...authority,allowedTargetIds:[...authority.allowedTargetIds,accepted.id]});
  }
 }
 export class FixtureWorkspaceProvider implements WorkspaceProvider {
@@ -153,6 +163,7 @@ export class FixtureWorkspaceProvider implements WorkspaceProvider {
 export function matchesDocumentText(observed:string,requested:string):boolean {
  if(observed===requested)return true;
  let doc:unknown;try{doc=JSON.parse(observed);}catch{return false;}
+ if(!doc||typeof doc!=='object'||(doc as {type?:unknown}).type!=='doc'||!Array.isArray((doc as {content?:unknown}).content))return false;
  function texts(node:unknown):string[]{
   if(!node||typeof node!=='object')return [];
   const value=node as {type?:string;text?:unknown;content?:unknown[]};

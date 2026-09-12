@@ -7,7 +7,7 @@ import type { AuthenticatedRequest } from './auth.js';
 import { UpgradeStore } from './upgrade-store.js';
 import { config } from './config.js';
 import { ArtifactCoordinator, artifactApprovalDigest, type ArtifactApproval, type ArtifactAuthority, type WorkspaceProvider } from './artifact-coordinator.js';
-import { AmbiguousWorkspaceProvider, FixtureWorkspaceProvider, WORKSPACE_CAPABILITIES } from './workspace-provider.js';
+import { AmbiguousWorkspaceProvider, FixtureWorkspaceProvider, WORKSPACE_CAPABILITIES, matchesDocumentText } from './workspace-provider.js';
 import {ProviderError} from './providers/types.js';
 import { HttpError } from './errors.js';
 
@@ -89,8 +89,8 @@ export function createArtifactRouter(service:MissionService){
   if(!operation)throw new HttpError(409,'Original operation is unavailable.');
   const authority:ArtifactAuthority={...principal,missionId:mission.id,missionRevision:mission.revision,sourceHashes:{},allowedTargetIds:[record.data.providerId,...(operation.targetId?[operation.targetId]:[])],allowedAudience:[],categories:[]};
   const observed=provider.readResult?await provider.readResult(operation,record.data.providerId,authority):await provider.read(operation.app,record.data.providerId,authority);
-  // Exact literal read-back only. Native document format conversion needs human inspection.
-  const matches=!['send','invite'].includes(operation.action)&&observed.title===operation.title&&observed.content===operation.content&&!operation.cells;
+  // Use the same supported plain-text equivalence as document write confirmation.
+  const matches=!['send','invite'].includes(operation.action)&&observed.title===operation.title&&(operation.app==='docs'?matchesDocumentText(observed.content,operation.content):observed.content===operation.content)&&!operation.cells;
   record.data={...record.data,state:matches?'verified':'outcome_unknown',artifact:{...observed,state:matches?'verified':'accepted'},code:matches?'readback_verified':'payload_requires_review'};record.revision++;
   await service.db.transaction(q=>store.save(record,principal,q));res.json(record.data);
  });
