@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+overrides:
+  '@ag-ui/client': 0.0.59
+onlyBuiltDependencies:
+  - esbuild
+  - '@swc/core'

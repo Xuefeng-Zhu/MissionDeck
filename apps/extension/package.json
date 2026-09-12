@@ -1,0 +1,21 @@
+{
+  "name": "@mission/extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "build": "vite build && vite build --config vite.worker.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mission/domain": "workspace:*",
+    "@mission/ui": "workspace:*",
+    "@copilotkit/react-core": "1.70.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "lucide-react": "0.577.0",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {}
+}

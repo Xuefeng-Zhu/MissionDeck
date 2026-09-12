@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "lib": ["ES2022", "DOM", "DOM.Iterable"], "module": "ESNext", "moduleResolution": "Bundler", "jsx": "react-jsx", "strict": true, "esModuleInterop": true, "skipLibCheck": true, "resolveJsonModule": true, "noEmit": true, "allowImportingTsExtensions": true,
+    "types": ["node", "chrome", "vite/client"],
+    "paths": { "@mission/domain": ["./packages/domain/src/index.ts"], "@mission/ui": ["./packages/ui/src/index.tsx"] }
+  },
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "packages/**/*.tsx", "scripts/**/*.ts", "tests/**/*.ts", "*.ts"],
+  "exclude": ["**/node_modules", "**/dist"]
+}

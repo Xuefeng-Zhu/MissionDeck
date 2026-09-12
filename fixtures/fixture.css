@@ -1,0 +1,33 @@
+:root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #26354a; background: #f6f8fb; }
+* { box-sizing: border-box; }
+body { margin: 0; line-height: 1.65; }
+.site-header { display: flex; align-items: center; gap: 12px; padding: 20px max(24px, calc((100vw - 800px) / 2)); border-bottom: 1px solid #dde4ed; background: white; color: #526179; font-size: 14px; }
+.mark { display: inline-flex; align-items: center; justify-content: center; height: 30px; width: 30px; background: #e7efff; color: #1d54ac; border-radius: 8px; font-weight: 750; }
+main { max-width: 800px; margin: 0 auto; padding: 48px 24px; }
+h1 { color: #142338; font-size: clamp(30px, 5vw, 42px); line-height: 1.18; letter-spacing: -.03em; margin: 12px 0 18px; }
+h2 { color: #142338; font-size: 22px; line-height: 1.3; margin-top: 0; }
+h3 { color: #142338; font-size: 17px; }
+p { margin: 0 0 16px; }
+.intro { font-size: 18px; color: #526179; max-width: 670px; }
+.label { font-size: 12px; font-weight: 750; letter-spacing: .09em; color: #245eb4; }
+section { padding-top: 30px; margin-top: 30px; border-top: 1px solid #dde4ed; }
+.requirement { background: #edf3ff; border-left: 3px solid #2a63b9; padding: 20px 24px; color: #183858; font-size: 18px; border-radius: 0 8px 8px 0; }
+.note { font-size: 14px; color: #526179; }
+a { color: #205baf; text-underline-offset: 3px; }
+a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [contenteditable]:focus-visible { outline: 3px solid #3b72cd; outline-offset: 3px; }
+.link-list { display: grid; gap: 14px; margin-top: 30px; }
+.link-list a { display: block; background: white; padding: 20px; border: 1px solid #d6e0ed; border-radius: 10px; text-decoration: none; }
+.link-list strong, .link-list span { display: block; }
+.link-list span { color: #526179; font-size: 14px; margin-top: 4px; }
+ul { padding-left: 22px; }
+li { margin: 9px 0; }
+form, .editable-box { background: white; border: 1px solid #d6e0ed; border-radius: 8px; padding: 20px; margin-top: 20px; }
+label { display: block; font-size: 14px; margin-bottom: 14px; }
+input, textarea, select { display: block; font: inherit; color: inherit; width: 100%; border: 1px solid #c6d1df; border-radius: 5px; padding: 8px 10px; margin-top: 5px; }
+textarea { min-height: 85px; resize: vertical; }
+code { background: #e9eef5; padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+.css-hidden { display: none; }
+.invisible { visibility: hidden; }
+.transparent { opacity: 0; }
+footer { border-top: 1px solid #dde4ed; max-width: 800px; padding: 24px; margin: 0 auto; font-size: 13px; color: #627089; }
+@media (max-width: 480px) { main { padding-top: 32px; } .site-header { padding: 16px 24px; } }

@@ -1,0 +1,14 @@
+import { resolve } from 'node:path';
+import { config } from './config.js';
+import { openDatabase } from './database.js';
+import { FixtureWorkProvider,FileFixtureRepository,AmbiguousWorkProvider } from './providers/index.js';
+import { MissionService } from './service.js';
+import { createApp } from './app.js';
+const db=await openDatabase();
+const provider=config.PROVIDER_MODE==='fixture'?new FixtureWorkProvider(new FileFixtureRepository(resolve(config.dataDir,'provider-fixture.json'))):new AmbiguousWorkProvider({apiKey:config.AMBIGUOUS_API_KEY,expectedUserId:config.AMBIGUOUS_EXPECTED_USER_ID,expectedWorkspaceId:config.AMBIGUOUS_EXPECTED_WORKSPACE_ID});
+const service=new MissionService(db,provider);
+await service.recoverInterruptedOperations();
+const app=await createApp(service);
+const server=app.listen(config.PORT,'127.0.0.1',()=>console.log(`Mission Control: http://127.0.0.1:${config.PORT} · provider=${config.PROVIDER_MODE} · model=${config.MODEL_MODE} · database=${config.DATABASE_MODE}. Pair locally using pnpm pairing-code.`));
+void service.drain();
+for(const signal of ['SIGINT','SIGTERM'] as const)process.on(signal,()=>server.close(()=>{void db.close().then(()=>process.exit(0));}));

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo fixture — capture privacy checks</title>
+  <link rel="stylesheet" href="fixture.css">
+  <style>.inline-hidden-parent { display: none; }</style>
+</head>
+<body>
+  <header class="site-header"><span class="mark" aria-hidden="true">M</span><span>Mission Control / Privacy fixture</span></header>
+  <nav aria-label="Fixture navigation" hidden>NAVIGATION_MARKER_MUST_NOT_CAPTURE</nav>
+  <main>
+    <p class="label">SYNTHETIC PRIVACY TEST · NO REAL CREDENTIALS</p>
+    <h1>Capture what is public.</h1>
+    <p class="intro">This page contains readable main text alongside synthetic form values, hidden content, and editable drafts. Every marker is fictional. No form submits and no network requests are made by this page.</p>
+    <p id="public-paragraph" data-expected="capture">PUBLIC_CAPTURE_MARKER: A human-reviewed project description and an accessible demo link are part of the fixture checklist.</p>
+    <p data-expected="capture">Visible noneditable main text should appear in a page-capture preview. Form values, hidden nodes, editable drafts, scripts, and canvas content should not appear.</p>
+
+    <section aria-labelledby="private-controls">
+      <h2 id="private-controls">Synthetic private controls</h2>
+      <p>These controls exist only to test exclusion. Do not type a real password, token, or private draft into this fixture.</p>
+      <form action="#" data-expected="exclude" aria-label="Synthetic private values">
+        <label>Sample password<input id="sample-password" type="password" value="FAKE_PASSWORD_NEVER_CAPTURE_82" autocomplete="off"></label>
+        <label>Sample email<input id="sample-email" type="email" value="FAKE_FORM_EMAIL_NEVER_CAPTURE@example.invalid" autocomplete="off"></label>
+        <label>Draft reply<textarea id="sample-textarea">TEXTAREA_DRAFT_NEVER_CAPTURE_45</textarea></label>
+        <label>Private selection<select><option>SELECT_VALUE_NEVER_CAPTURE_73</option></select></label>
+        <input type="hidden" value="HIDDEN_INPUT_NEVER_CAPTURE_19">
+        <output>FORM_OUTPUT_NEVER_CAPTURE_14</output>
+      </form>
+      <div class="editable-box" id="private-draft" contenteditable="true" role="textbox" aria-label="Synthetic editable draft" data-expected="exclude">EDITABLE_DRAFT_NEVER_CAPTURE_31</div>
+      <div class="editable-box" role="textbox" aria-label="Synthetic custom editor" tabindex="0" data-expected="exclude">ROLE_TEXTBOX_NEVER_CAPTURE_68</div>
+      <p class="note">Selecting inside an editable draft, or selecting a range that crosses one, should be refused with a manual-entry explanation.</p>
+    </section>
+
+    <section aria-labelledby="hidden-content">
+      <h2 id="hidden-content">Hidden-content checks</h2>
+      <p data-expected="capture">PUBLIC_AFTER_HIDDEN_MARKER: This visible paragraph should be captured normally.</p>
+      <div hidden data-expected="exclude">HIDDEN_ATTRIBUTE_NEVER_CAPTURE_27</div>
+      <div aria-hidden="true" data-expected="exclude">ARIA_HIDDEN_NEVER_CAPTURE_91</div>
+      <div class="css-hidden" data-expected="exclude">CSS_DISPLAY_NONE_NEVER_CAPTURE_64</div>
+      <div class="invisible" data-expected="exclude">CSS_VISIBILITY_HIDDEN_NEVER_CAPTURE_22</div>
+      <div class="transparent" data-expected="exclude">CSS_OPACITY_ZERO_NEVER_CAPTURE_86</div>
+      <div class="inline-hidden-parent" data-expected="exclude"><p>HIDDEN_ANCESTOR_NEVER_CAPTURE_36</p></div>
+      <template data-expected="exclude"><p>TEMPLATE_NEVER_CAPTURE_54</p></template>
+      <script type="application/json" data-expected="exclude">{"fixtureOnly":"SCRIPT_DATA_NEVER_CAPTURE_48"}</script>
+      <canvas width="1" height="1" aria-hidden="true" data-expected="exclude">CANVAS_FALLBACK_NEVER_CAPTURE_92</canvas>
+      <iframe title="Synthetic inaccessible frame" sandbox hidden srcdoc="<p>FRAME_CONTENT_NEVER_CAPTURE_57</p>" data-expected="exclude"></iframe>
+    </section>
+    <section aria-labelledby="check-instructions">
+      <h2 id="check-instructions">Review the preview before sending</h2>
+      <p>Invoke Mission Control on this tab, choose “Capture current page,” and inspect the editable preview. The two public markers should appear. None of the synthetic private markers should appear.</p>
+      <p>To test source sanitization, append <code>?token=FAKE_URL_SECRET&amp;session=FAKE_SESSION#FAKE_FRAGMENT</code> to this page's URL. The submitted source should not retain those values or the fragment.</p>
+      <p class="note">This fixture does not establish activeTab permission loss after navigating to a different website. That behavior requires the separate extension permission check described in the test report.</p>
+    </section>
+  </main>
+  <aside hidden>ASIDE_MARKER_NEVER_CAPTURE_38</aside>
+  <footer><a href="index.html">All fixtures</a> · <a href="requirements.html">Demo requirements</a></footer>
+</body>
+</html>

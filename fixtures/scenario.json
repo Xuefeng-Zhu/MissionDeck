@@ -1,0 +1,26 @@
+{
+  "label": "Fictional Mission Control demonstration; not an actual event",
+  "clock": "2026-09-12T16:00:00.000Z",
+  "timezone": "America/Los_Angeles",
+  "deadline": "2026-09-12T21:00:00.000Z",
+  "deadlineOffsetMinutes": 300,
+  "availability": "Continuous availability; working calendars and breaks are not modeled",
+  "capacity": { "humanConcurrencyPerOwner": 1, "agentConcurrency": 2 },
+  "expectedProjections": {
+    "initialPlanMinutes": 270,
+    "withRequiredVideoMinutes": 350,
+    "afterOptionalPolishDeferralMinutes": 300,
+    "withUnresolvedBlockerEta": null
+  },
+  "missingRequirement": {
+    "source": "requirements.html",
+    "selectionId": "demo-video-requirement",
+    "requiredCriterion": "Two-minute demo video",
+    "suggestedEffortMinutes": 80,
+    "verification": "Human reviews playback, duration, and accessibility of the final video link"
+  },
+  "optionalWork": { "taskSuffix": "task-polish", "effortMinutes": 50 },
+  "blocker": { "taskSuffix": "task-build", "label": "User-reported fixture blocker; core implementation is unavailable", "simulated": true },
+  "providerMode": "fixture",
+  "modelMode": "fixture"
+}

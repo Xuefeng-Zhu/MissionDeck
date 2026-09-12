@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: mission_control
+      POSTGRES_USER: mission
+      POSTGRES_PASSWORD: mission
+    ports:
+      - '127.0.0.1:54329:5432'
+    volumes:
+      - mission_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mission -d mission_control']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  mission_pg:
