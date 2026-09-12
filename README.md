@@ -1,8 +1,26 @@
 # Mission Control
 
-Your browser knows what you are looking at. Mission Control knows what you are trying to accomplish.
+**Humans and AI agents, working toward one mission.**
 
-A Manifest V3 Chrome side panel for outcome-driven plans, explicitly accepted page evidence, persisted human approvals, and verified external task updates. This repository is named MissionDeck; the product is Mission Control.
+Mission Control helps small teams tackle ambitious projects by combining agent execution with human judgment. Large projects involve dependent tasks, changing requirements, and decisions that need people. A shared mission connects those pieces so each contributor can build on the work that came before.
+
+**Product goal:** State a mission, break it into tasks in **Ambiguous.ai**, and assign each task to a specific human or agent. Start eligible agent work automatically, use human feedback to move the project forward, and keep drafts, evidence, reviews, and final artifacts in Ambiguous, linked to their tasks and mission.
+
+## From mission to shared work: the intended workflow
+
+1. **Define the outcome.** Describe the mission, constraints, and what successful completion looks like.
+2. **Break down and assign the work.** Give each task an owner, dependencies, an expected deliverable, and completion criteria. Agents handle supported drafting and synthesis; humans contribute decisions, missing information, and review.
+3. **Coordinate execution and handoffs.** Ready agent tasks start automatically. Completed prerequisites and human feedback release the next steps, carrying the relevant context forward.
+4. **Keep the work together.** Ambiguous is the shared home for tasks and artifacts. Drafts, evidence, and review results stay connected to the mission so contributors can find and reuse them.
+5. **Verify the outcome.** Check the deliverables against the mission's required results, with human verification where needed.
+
+For example, a product-launch mission can move from an agent's positioning draft to a human's review, then to an agent's final launch brief. That handoff illustrates the goal of coordinating larger projects across people and agents.
+
+The Chrome side panel keeps the mission beside the pages where requirements and feedback appear. Users select and review browser context before sharing it. Mission Control coordinates the work; Ambiguous keeps the shared tasks and outputs accessible beyond a single conversation.
+
+## Current scope
+
+The committed prototype is a Manifest V3 Chrome side panel for outcome-driven plans, explicitly accepted page evidence, persisted human approvals, and verified external task updates. This repository is named MissionDeck; the product is Mission Control.
 
 ## Run locally
 
