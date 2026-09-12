@@ -5,7 +5,7 @@ import {resolve} from 'node:path';
 async function pair(page:Page){
   await page.goto('/');
   await page.getByRole('button',{name:'Settings',exact:true}).first().click();
-  const code=process.env.PAIRING_CODE || (await readFile(resolve(process.cwd(),'.data/pairing-code'),'utf8')).trim();
+  const code='browser-fixture-pairing-code-only';
   await page.getByLabel('Pairing code',{exact:true}).fill(code);
   await page.getByRole('button',{name:'Pair workspace',exact:true}).click();
   await expect(page.getByRole('button',{name:'Pair workspace',exact:true})).not.toBeVisible();
@@ -117,4 +117,26 @@ test('reject creates no tasks and explicit criterion attestations complete a fix
   await page.reload();
   await expect(page.locator('.mission-header').getByText('Completed',{exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Reopen mission',exact:true})).toBeVisible();
+});
+
+test('connected fixture artifacts and routine review persist without native activation',async({page})=>{
+ await pair(page);await openFreshFixtureMission(page);
+ await page.getByRole('button',{name:'Confirm contract & generate plan'}).click();
+ await page.getByRole('button',{name:'Artifacts',exact:true}).click();
+ await page.getByLabel('Normalized review facts').fill('REQ-1: keyboard accessibility needs review. REQ-2: audit export readiness unknown. Fixture sources only.');
+ await page.getByRole('button',{name:'Prepare artifact plan',exact:true}).click();
+ const plans=page.locator('details').filter({hasText:'Prepare the launch review from selected saved evidence.'});
+ await plans.last().locator('summary').first().click();
+ await plans.last().getByRole('button',{name:'Approve these private outputs'}).click();
+ await expect(page.getByRole('status').filter({hasText:'verified'}).first()).toBeVisible();
+ await page.reload();await page.getByRole('button',{name:'Artifacts',exact:true}).click();
+ await expect(page.getByText('Launch review · docs · verified · fixture',{exact:false}).first()).toBeVisible();
+ await page.getByRole('button',{name:'Routines',exact:true}).click();
+ await page.getByRole('button',{name:'Load three comparable fixture runs'}).click();
+ await expect(page.getByText('Comparable fixture runs',{exact:true}).first()).toBeVisible();
+ await page.getByRole('button',{name:'Preview',exact:true}).first().click();
+ await expect(page.getByText('Local preview · 0 production writes',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Enable native routine'}).first()).toBeDisabled();
+ await assertNoHorizontalOverflow(page,360);
+ await assertNoHorizontalOverflow(page,480);
 });

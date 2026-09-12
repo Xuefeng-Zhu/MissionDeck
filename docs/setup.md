@@ -22,7 +22,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-The supplied environment selects `PROVIDER_MODE=fixture`, `MODEL_MODE=fixture`, and `DATABASE_MODE=pglite`. Fixture suggestions and provider responses are labeled in the app; mission records and approvals are persisted locally. No sponsor account is needed for this mode. Live model/provider errors never switch these settings automatically.
+The supplied environment selects `PROVIDER_MODE=fixture`, `MODEL_MODE=fixture`, `MODEL_PROVIDER=openrouter`, and `DATABASE_MODE=pglite`. The model-provider choice is inactive until model mode is explicitly changed to live. Fixture suggestions and provider responses are labeled in the app; mission records and approvals are persisted locally. No sponsor account is needed for this mode. Live model/provider errors never switch these settings automatically.
 
 The copy command preserves an existing `.env`; review its mode flags before starting an existing setup.
 
@@ -73,7 +73,9 @@ Use [integration verification](integrations.md) for exact capabilities and the p
 
 - For Ambiguous, set `AMBIGUOUS_API_KEY` and `PROVIDER_MODE=live`. Read the connected identity, verify it belongs to your intended test workspace, then set `AMBIGUOUS_EXPECTED_USER_ID` and `AMBIGUOUS_EXPECTED_WORKSPACE_ID` and restart.
 - Begin with the integration smoke proposal, containing exactly one task. Approve its create, verify its returned ID by read-back, approve a supported update, and verify that update. Full-plan live creation remains gated until that path succeeds.
-- For OpenAI, set `OPENAI_API_KEY`, `MODEL_MODE=live`, and an `OPENAI_MODEL` available to your account. Restart, open the CopilotKit conversation, and verify a streamed response and a persisted proposal. Runtime discovery is not proof of model access.
+- For OpenRouter, set `MODEL_MODE=live`, `MODEL_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and `OPENROUTER_MODEL` in the server environment. The default model is `openai/gpt-5.6-luna`; choose a model that supports both tools and structured outputs and is available to your account. Restart, open the CopilotKit conversation, and verify a streamed response and a persisted proposal. Runtime discovery is not proof of model access.
+- Direct OpenAI is optional: select `MODEL_PROVIDER=openai` and configure `OPENAI_API_KEY` plus `OPENAI_MODEL` (default `gpt-5-mini`). Only the selected vendor's credential is used. Missing credentials or errors never fall back to another vendor.
+- Model access and task writes are independent. Keep `PROVIDER_MODE=fixture` while testing a live OpenRouter or OpenAI conversation; use the separate Ambiguous smoke workflow before enabling real task writes.
 - Trigger.dev and Exa remain disabled until the core live acceptance checks pass. Their missing keys do not block the fixture demo.
 
 Do not create a replacement workspace to resolve a provider 401 or 403. Correct the intended workspace's credential or permissions. An `outcome_unknown` write requires inspection/reconciliation, not a blind create retry.
@@ -87,6 +89,8 @@ pnpm build
 pnpm test:browser
 ```
 
-See [the test report](tests.md) for checks actually run and manual extension checks still outstanding. Use `pnpm exec playwright install chromium` if the test browser is missing. Fixture tests do not prove live Ambiguous/OpenAI access, and full-page tests do not alone prove native toolbar, side-panel, or temporary permission behavior.
+See [the test report](tests.md) for checks actually run and manual extension checks still outstanding. Use `pnpm exec playwright install chromium` if the test browser is missing. Fixture tests do not prove live Ambiguous/OpenRouter/OpenAI access, and full-page tests do not alone prove native toolbar, side-panel, or temporary permission behavior.
 
 Domain tests and exported demo factories use the fixed `DEMO_NOW` clock. The running application uses the real clock for expiring approvals and derives illustrative demo deadlines from the current time. Relative human dates must be confirmed as exact dates in the displayed timezone; the date input is interpreted in that displayed IANA timezone.
+
+For the upgrade, use explicit fixture modes and a fresh local `DATA_DIR`. Browser CI uses `.data/browser-upgrade`, a fixture-only pairing code, and refuses to reuse an existing server when `CI=1`. The server and extension remain loopback-only. Check port collisions before starting; do not stop unrelated processes.

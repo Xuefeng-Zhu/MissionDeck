@@ -77,6 +77,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: 3.0.112
+        version: 3.0.112(zod@4.1.12)
       '@copilotkit/runtime':
         specifier: 1.70.3
         version: 1.70.3(@cfworker/json-schema@4.1.1)(@langchain/core@1.2.11(@opentelemetry/api@1.9.1)(openai@6.27.0(ws@8.21.3)(zod@4.1.12))(ws@8.21.3))(@langchain/langgraph-sdk@1.11.0(@langchain/core@1.2.11(@opentelemetry/api@1.9.1)(openai@6.27.0(ws@8.21.3)(zod@4.1.12))(ws@8.21.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@opentelemetry/api@1.9.1)(langchain@1.5.11(@langchain/core@1.2.11(@opentelemetry/api@1.9.1)(openai@6.27.0(ws@8.21.3)(zod@4.1.12))(ws@8.21.3))(@opentelemetry/api@1.9.1)(openai@6.27.0(ws@8.21.3)(zod@4.1.12))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(ws@8.21.3))(openai@6.27.0(ws@8.21.3)(zod@4.1.12))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@4.0.18(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(tsx@4.21.0))
@@ -4377,6 +4380,12 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
       zod: 3.25.76
 
+  '@ai-sdk/openai@3.0.112(zod@4.1.12)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.16
+      '@ai-sdk/provider-utils': 4.0.51(zod@4.1.12)
+      zod: 4.1.12
+
   '@ai-sdk/provider-utils@3.0.37(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 2.0.4
@@ -4392,6 +4401,14 @@ snapshots:
       eventsource-parser: 3.1.1
       undici: 6.28.1
       zod: 3.25.76
+
+  '@ai-sdk/provider-utils@4.0.51(zod@4.1.12)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.16
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.1.1
+      undici: 6.28.1
+      zod: 4.1.12
 
   '@ai-sdk/provider@2.0.4':
     dependencies:

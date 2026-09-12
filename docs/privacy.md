@@ -19,12 +19,15 @@ Unsent captures remain in extension session storage and UI memory for a short ex
 | Local application database | Mission contract, tasks, dependencies, estimates, accepted excerpts/source URLs, approvals, events, and provider mappings | After a paired request |
 | Local fixture provider store | Simulated task title, description, status, IDs, and operation deduplication | Explicit `PROVIDER_MODE=fixture` |
 | Ambiguous | Approved task title, description, and supported status | Explicit live mode, verified workspace identity, exact proposal approval |
-| OpenAI | Minimal active mission context and accepted evidence needed for planning/assessment; CopilotKit conversation/tool context | Explicit `MODEL_MODE=live` with server credential |
+| OpenRouter and its selected upstream model provider | Minimal active mission context and accepted evidence needed for planning/assessment; CopilotKit conversation/tool context | Explicit `MODEL_MODE=live`, `MODEL_PROVIDER=openrouter`, and server credential |
+| Direct OpenAI | The same bounded planning/assessment and CopilotKit context | Explicit `MODEL_MODE=live`, `MODEL_PROVIDER=openai`, and server credential |
 | Trigger.dev / Exa | None in this build | Phase two is disabled |
 
 CopilotKit provides the contextual interaction and controlled React cards. The backend remains authoritative. This build does not configure managed CopilotKit Intelligence persistence or send it a separate project credential. CopilotKit runtime telemetry is disabled by default with `COPILOTKIT_TELEMETRY_DISABLED=true`. Sponsor credentials stay on the server and are not bundled into the extension.
 
-Structured OpenAI proposal requests and the CopilotKit agent's OpenAI provider options specify `store:false`. Provider processing and retention remain governed by the account's own settings and terms; the application does not claim zero retention by external vendors.
+Live model traffic originates on the local server. OpenRouter routes requests to the selected model provider; direct OpenAI requests go to OpenAI. Credentials remain server-side, and only the explicitly selected vendor is used. No OpenRouter or OpenAI host permission is added to the extension.
+
+Structured proposal requests and CopilotKit model requests specify `store:false`. This request field does not establish a retention guarantee across OpenRouter or its upstream providers. Processing and retention remain governed by the selected vendor, upstream provider, and account settings; the application does not claim zero retention by external vendors.
 
 ## Retention and controls
 
@@ -42,3 +45,5 @@ The application session is revocable, limited to the paired origin, and stored i
 The server is intended for one local user and binds to loopback. Origin restrictions and a pairing credential protect the API. This is not a hosted multiuser authentication system. Running it behind a public tunnel or sharing its data directory is unsupported.
 
 Webpage instructions and provider/model content are untrusted data. They cannot approve proposals, execute code, change tool permissions, or make arbitrary authenticated HTTP requests. Only allowlisted application actions are available. Live provider errors are shown as errors, conflicts, or unknown outcomes; they are never replaced with simulated success.
+
+The incremental context/workspace feature has additional [browser consent, temporary retention, screenshots and revocation controls](browser-context-privacy.md). Automatic extraction consent is distinct from automatic sharing. The existing explicit accepted-evidence path remains available. Native capability states and consequential-action gaps are detailed in [the capability matrix](ambiguous-capabilities.md); local proposals never imply sent mail, posted chat, invitations or native workflow activation.

@@ -66,3 +66,18 @@ CopilotKit v2 registers controlled mission components, minimal context, and navi
 The bounded in-memory CopilotKit runner retains recent conversation events only while the server process survives. It is separate from PostgreSQL mission persistence. Open-ended model-generated UI is explicitly disabled; the application registers its own controlled React components. The compatibility boundary between the installed Express 4 adapter declarations and the Express 5 host is isolated at the router mount and covered by a real adapter discovery test.
 
 Phase-two Trigger.dev/Exa research is disabled. Adding it later requires a durable job status store, an approved public query, bounded execution, an authenticated reachable persistence path, and artifact-only automatic completion. Mission changes must continue through the same approval boundary.
+
+## Incremental workspace ownership
+
+| Responsibility | Implementation |
+| --- | --- |
+| BrowserContextProvider | Extension `browser-context.ts`: trusted browser identity, exact grants, extraction and screenshot boundaries |
+| ContextSessionManager | Extension `context-session.ts`: memory-only consent, epochs, selected sources, coalescing and frozen requests |
+| Temporary sharing | Server `context-router.ts`: authenticated identity, immutable request IDs, expiry and revocation |
+| AmbiguousWorkspaceProvider | Server `workspace-provider.ts`, `workspace-mapping.ts`, `workspace-destination.ts`: closed native paths, identity/preflight and semantic read-back |
+| ArtifactCoordinator / PolicyGuard | Server `artifact-coordinator.ts`, `artifact-router.ts`: typed exact plans, separate authority categories, expiring digests and durable outcomes |
+| RoutineDiscovery / AutomationCompiler | Domain `routines.ts`, server `routines.ts`: consented deterministic matching, validated scope, zero-write preview and explicit schema blockers |
+| Run reconciliation | Existing mission service plus artifact reconciliation and `native-routine-inspector.ts`; unknown outcomes never cause blind create/send retries |
+| Scoped persistence | Existing mission aggregate/outbox plus `UpgradeStore` and additive migration 002 |
+
+CopilotKit keeps the existing installed v2 APIs for contextual conversation, controlled previews and human feedback. Backend routes own authorization and execution. Native Ambiguous workflows remain the intended primary routine engine; missing authenticated node schemas block compilation rather than selecting a duplicate local scheduler. Browser worker lifetime is not an execution dependency for approved backend artifact work. This remains a local fixed user/workspace deployment, not hosted multi-tenancy.

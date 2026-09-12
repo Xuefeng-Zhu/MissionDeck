@@ -4,11 +4,37 @@
   "description": "A mission workspace for explicitly captured context and approved work.",
   "version": "0.1.0",
   "minimum_chrome_version": "116",
-  "permissions": ["sidePanel", "activeTab", "scripting", "contextMenus", "storage"],
-  "host_permissions": ["http://127.0.0.1:4318/*", "http://localhost:4318/*"],
-  "background": {"service_worker": "background.js", "type": "module"},
-  "side_panel": {"default_path": "index.html"},
-  "action": {"default_title": "Open Mission Control"},
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "scripting",
+    "contextMenus",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:4318/*",
+    "http://localhost:4318/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "action": {
+    "default_title": "Open Mission Control"
+  },
   "options_page": "index.html?settings=1",
-  "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:4318 http://localhost:4318;"}
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:4318 http://localhost:4318;"
+  },
+  "optional_permissions": [
+    "tabs"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "incognito": "not_allowed"
 }

@@ -1,0 +1,11 @@
+/* Additive upgrade layout; preserve the established shared design tokens. */
+.tabs { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; }
+.tabs > button { flex-shrink:0; }
+section[aria-label="Connected artifacts"] { background:white; border:1px solid var(--line); border-radius:8px; padding:18px; min-width:0; }
+section[aria-label="Connected artifacts"] details, section[aria-label="Routines"] details { border-top:1px solid var(--line); padding:12px 0; }
+section[aria-label="Connected artifacts"] summary, section[aria-label="Routines"] summary { cursor:pointer; overflow-wrap:anywhere; }
+section[aria-label="Connected artifacts"] pre, section[aria-label="Routines"] pre { max-width:100%; max-height:300px; overflow:auto; font-size:12px; }
+section[aria-label="Connected artifacts"] p, section[aria-label="Routines"] p, section[aria-label="Browser context"] p { overflow-wrap:anywhere; }
+section[aria-label="Browser context"] table { display:block; overflow:auto; max-width:100%; font-size:12px; border-collapse:collapse; }
+section[aria-label="Browser context"] td, section[aria-label="Browser context"] th { border:1px solid var(--line); padding:5px; text-align:left; }
+@media(max-width:600px){section[aria-label="Connected artifacts"]{padding:15px 12px}.tabs > button{padding-left:13px;padding-right:13px;min-width:0}section[aria-label="Browser context"] .header-actions{flex-wrap:wrap}}

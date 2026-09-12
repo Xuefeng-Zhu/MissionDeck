@@ -1,9 +1,13 @@
-import {afterAll,beforeAll,describe,expect,it} from 'vitest';
+import {afterAll,beforeAll,describe,expect,it,vi} from 'vitest';
 import type {Server} from 'node:http';
 import {openDatabase,type Database} from './database.js';
 import {MissionService} from './service.js';
 import {FixtureWorkProvider,MemoryFixtureRepository,ProviderError} from './providers/index.js';
 import {createApp} from './app.js';
+
+// The API suite must stay synthetic even after a developer enables real keys
+// and model mode in the local .env for a separate integration check.
+vi.hoisted(()=>{process.env.MODEL_MODE='fixture';process.env.PROVIDER_MODE='fixture';});
 
 describe('paired local API boundaries',()=>{
   let db:Database;let service:MissionService;let server:Server;let base:string;let token:string;

@@ -9,6 +9,11 @@ import { type AuthenticatedRequest,authMiddleware,equalSecret,issueSession,pairi
 import { HttpError } from './errors.js';
 import { MissionService } from './service.js';
 import { Planner,SAFETY_PROMPT } from './model.js';
+import { modelStatus,resolveModelConfig } from './model-provider.js';
+import { createRuntimeModel } from './runtime-model.js';
+import {createRoutinesRouter} from './routines-router.js';
+import { createArtifactRouter } from './artifact-router.js';
+import { createContextRouter } from './context-router.js';
 import { ProviderError } from './providers/index.js';
 
 const line=z.string().trim().min(1).max(500);
@@ -18,7 +23,7 @@ const param=(req:Request,name:string)=>z.string().max(160).regex(/^[\w.:-]+$/).p
 const reply=(res:Response,m:Mission,service:MissionService)=>res.json({mission:m,health:service.health(m)});
 
 export async function createApp(service:MissionService,options?:{pairingCode?:string;enableCopilot?:boolean}) {
-  const app=express();const db=service.db;const code=options?.pairingCode??await pairingCode();const planner=new Planner();
+  const app=express();const db=service.db;const code=options?.pairingCode??await pairingCode();const planner=new Planner();const selectedModel=resolveModelConfig();
   const pairedOrigins=new Set(config.origins);const origins=await db.query<{origin:string}>('SELECT DISTINCT origin FROM sessions WHERE expires_at>now()');origins.rows.forEach(r=>pairedOrigins.add(r.origin));
   const attempts=new Map<string,{count:number;reset:number}>();
   app.disable('x-powered-by');
@@ -35,8 +40,8 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
   });
   app.use(express.json({limit:'256kb'}));
   app.get('/health',(_req,res)=>res.json({status:'ok',service:'mission-control'}));
-  const missing=[...(config.PROVIDER_MODE==='live'&&!config.AMBIGUOUS_API_KEY?['Set AMBIGUOUS_API_KEY on the server.']:[]),...(config.PROVIDER_MODE==='live'&&(!config.AMBIGUOUS_EXPECTED_USER_ID||!config.AMBIGUOUS_EXPECTED_WORKSPACE_ID)?['Set AMBIGUOUS_EXPECTED_USER_ID and AMBIGUOUS_EXPECTED_WORKSPACE_ID after inspecting the connected identity.']:[]),...(config.MODEL_MODE==='live'&&!config.OPENAI_API_KEY?['Set OPENAI_API_KEY on the server.']:[])];
-  app.get('/api/config',(_req,res)=>res.json({providerMode:config.PROVIDER_MODE,modelMode:config.MODEL_MODE,mode:config.PROVIDER_MODE,databaseMode:config.DATABASE_MODE,modelEnabled:config.MODEL_MODE==='live'&&!!config.OPENAI_API_KEY,liveReady:false,missing,setupRequired:missing,identity:null,researchEnabled:false,demoNow:null,fixtureNotice:'Fixture provider records and deterministic planning suggestions are local simulation. No sponsor calls are made in fixture mode.'}));
+  const missing=[...(config.PROVIDER_MODE==='live'&&!config.AMBIGUOUS_API_KEY?['Set AMBIGUOUS_API_KEY on the server.']:[]),...(config.PROVIDER_MODE==='live'&&(!config.AMBIGUOUS_EXPECTED_USER_ID||!config.AMBIGUOUS_EXPECTED_WORKSPACE_ID)?['Set AMBIGUOUS_EXPECTED_USER_ID and AMBIGUOUS_EXPECTED_WORKSPACE_ID after inspecting the connected identity.']:[]),...selectedModel.setupRequired];
+  app.get('/api/config',(_req,res)=>res.json({workspaceUpgradeEnabled:config.WORKSPACE_UPGRADE_ENABLED,providerMode:config.PROVIDER_MODE,modelMode:config.MODEL_MODE,mode:config.PROVIDER_MODE,databaseMode:config.DATABASE_MODE,...modelStatus(selectedModel),liveReady:false,missing,setupRequired:missing,identity:null,researchEnabled:false,demoNow:null,fixtureNotice:'Fixture provider records and deterministic planning suggestions are local simulation. No sponsor calls are made in fixture mode.'}));
   app.get('/privacy',(_req,res)=>res.type('text/plain').sendFile(resolve(repoRoot,'docs/privacy.md')));
   app.post('/api/pair',async(req,res)=>{
     const origin=req.headers.origin??'local-cli';const key=req.socket.remoteAddress??'local';const current=attempts.get(key);const bucket=current&&current.reset>Date.now()?current:{count:0,reset:Date.now()+60_000};attempts.set(key,bucket);
@@ -46,7 +51,8 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
     const token=await issueSession(db,origin);pairedOrigins.add(origin);res.json({token,expiresIn:86400});
   });
   app.use('/api',authMiddleware(db));
-  app.post('/api/session/revoke',async(req,res)=>{await db.query('DELETE FROM sessions WHERE token_hash=$1',[scope(req).tokenHash]);res.json({revoked:true});});
+  if(config.WORKSPACE_UPGRADE_ENABLED){app.use(createContextRouter(service));app.use('/api',createArtifactRouter(service));app.use(createRoutinesRouter(service));}
+  app.post('/api/session/revoke',async(req,res)=>{await db.transaction(async q=>{await q('DELETE FROM sessions WHERE token_hash=$1',[scope(req).tokenHash]);await q('DELETE FROM temporary_context WHERE owner_id=$1 AND workspace_id=$2',[scope(req).ownerId,scope(req).workspaceId]);});res.json({revoked:true});});
   app.get('/api/integrations/check',async(_req,res)=>{const capabilities=await service.provider.discover();let identity=null;try{identity=await service.provider.identity();}catch{}res.json({capabilities,identity,liveReady:service.provider.mode==='live'&&capabilities.writesEnabled,setupRequired:capabilities.setupRequired});});
   app.post('/api/integrations/smoke',async(req,res)=>{
     const m=await service.create(scope(req));
@@ -115,14 +121,14 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
   app.delete('/api/missions/:id',async(req,res)=>{const id=param(req,'id');await service.get(id,scope(req));await db.transaction(async q=>{const pending=await q("SELECT id FROM outbox WHERE mission_id=$1 AND state IN ('pending','running')",[id]);if(pending.rows.length)throw new HttpError(409,'Wait for pending operations before deleting this mission.');await q('DELETE FROM missions WHERE id=$1 AND owner_id=$2 AND workspace_id=$3',[id,scope(req).ownerId,scope(req).workspaceId]);});res.json({deleted:true,externalTasksDeleted:false});});
   // Fixture pages are explicit test material; never inject a page bridge into arbitrary websites.
   app.use('/fixtures',express.static(resolve(repoRoot,'fixtures'),{index:'requirements.html'}));
-  if(options?.enableCopilot!==false&&config.MODEL_MODE==='live'&&config.OPENAI_API_KEY){
+  if(options?.enableCopilot!==false&&selectedModel.enabled){
     const {CopilotRuntime,BuiltInAgent,InMemoryAgentRunner}=await import('@copilotkit/runtime/v2');const {createCopilotExpressHandler}=await import('@copilotkit/runtime/v2/express');
-    const runtime=new CopilotRuntime({agents:{default:new BuiltInAgent({model:`openai:${config.OPENAI_MODEL}`,prompt:SAFETY_PROMPT,maxSteps:1,maxOutputTokens:1800,maxRetries:0,providerOptions:{openai:{store:false}}})},runner:new InMemoryAgentRunner({maxThreads:20,maxRunsPerThread:20,maxBytes:16*1024*1024,onConcurrentRun:'throw'}),openGenerativeUI:false});
+    const runtime=new CopilotRuntime({agents:{default:new BuiltInAgent({model:createRuntimeModel(selectedModel),prompt:SAFETY_PROMPT,maxSteps:1,maxOutputTokens:1800,maxRetries:0,providerOptions:{openai:{store:false}}})},runner:new InMemoryAgentRunner({maxThreads:20,maxRunsPerThread:20,maxBytes:16*1024*1024,onConcurrentRun:'throw'}),openGenerativeUI:false});
     const copilotRouter=createCopilotExpressHandler({runtime,basePath:'/api/copilotkit',cors:false,activateChannels:false});
     // Runtime 1.70.3 exports Express 4 Router types; its Node request/response
     // middleware is compatible with our Express 5 host. Keep this adaptation at the mount.
     app.use(copilotRouter as unknown as express.RequestHandler);
-  }else app.use('/api/copilotkit',(_req,res)=>res.status(503).json({error:'CopilotKit live conversation requires MODEL_MODE=live and a server-side OPENAI_API_KEY. The fixture workflow is available through explicit review controls.'}));
+  }else app.use('/api/copilotkit',(_req,res)=>res.status(503).json({error:`CopilotKit live conversation requires MODEL_MODE=live and a server-side ${selectedModel.apiKeyEnv}. The fixture workflow is available through explicit review controls.`}));
   app.use((error:unknown,_req:Request,res:Response,_next:NextFunction)=>{
     if(res.headersSent)return;
     if(error instanceof z.ZodError){res.status(422).json({error:'Some fields are invalid.',code:'validation_error',details:error.issues.map(i=>({path:i.path,message:i.message}))});return;}

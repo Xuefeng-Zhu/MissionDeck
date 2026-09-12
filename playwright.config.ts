@@ -6,7 +6,7 @@ export default defineConfig({
   reporter:[['list'],['html',{open:'never',outputFolder:'playwright-report'}]],
   projects:[{name:'chromium',use:{...devices['Desktop Chrome'],viewport:{width:1440,height:1000}}}],
   webServer:[
-    {command:'./node_modules/.bin/tsx apps/server/src/index.ts',url:'http://127.0.0.1:4318/health',reuseExistingServer:!process.env.CI,timeout:120_000,env:{PROVIDER_MODE:'fixture',MODEL_MODE:'fixture'}},
+    {command:'./node_modules/.bin/tsx apps/server/src/index.ts',url:'http://127.0.0.1:4318/health',reuseExistingServer:!process.env.CI,timeout:120_000,env:{PROVIDER_MODE:'fixture',MODEL_MODE:'fixture',DATA_DIR:'.data/browser-upgrade',PAIRING_CODE:'browser-fixture-pairing-code-only'}},
     {command:'../../node_modules/.bin/vite --host 127.0.0.1 --port 5173',cwd:resolve(process.cwd(),'apps/extension'),url:'http://127.0.0.1:5173',reuseExistingServer:!process.env.CI,timeout:120_000},
   ],
 });

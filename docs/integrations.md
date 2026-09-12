@@ -1,6 +1,6 @@
 # Integration verification
 
-Reviewed **2026-09-12**. Documentation and schema retrieval succeeded. This proves the documented interface, not access to a customer's account. `OPENAI_API_KEY`, `AMBIGUOUS_API_KEY`, `TRIGGER_SECRET_KEY`, and `EXA_API_KEY` were absent from the build process environment (presence checks only). No live task was created, changed, or deleted during implementation.
+Reviewed **2026-09-12**. Documentation and schema retrieval succeeded. This proves the documented interface, not access to a customer's account. The initial fixture build used no model or task-provider credentials and made no live task writes. OpenRouter is now the default selectable live model vendor; current credential-backed results belong in the [test report](tests.md), separately from fixture and mocked-transport checks.
 
 ## Selected versions
 
@@ -14,6 +14,7 @@ The exact direct pins below are in package manifests; the lockfile records the c
 | `react`, `react-dom` | `19.2.4` | React 19 frontend |
 | `zod` | `4.1.12` | Shared TypeScript boundary schemas |
 | `openai` | `6.27.0` | Server-only structured output client |
+| `@ai-sdk/openai` | `3.0.112` | Explicit Chat Completions transport for the selected live vendor |
 | `express` | `5.2.1` | Authenticated loopback API/runtime |
 | `vite` | `7.3.1` | Locally bundled MV3 frontend |
 | `@electric-sql/pglite` | `0.3.15` | Persistent local embedded PostgreSQL demo |
@@ -22,21 +23,25 @@ The exact direct pins below are in package manifests; the lockfile records the c
 
 The package and override evidence is the official [web manifest](https://github.com/CopilotKit/agents-everywhere-starter-kit/blob/main/apps/web/package.json) and [root manifest](https://github.com/CopilotKit/agents-everywhere-starter-kit/blob/main/package.json). These are selected pins, not claims to be the latest packages on npm.
 
-## CopilotKit and OpenAI
+## CopilotKit, OpenRouter, and direct OpenAI
 
 All frontend components and hooks use `@copilotkit/react-core/v2`: `CopilotKitProvider`, `CopilotChat`, `useAgentContext`, `useFrontendTool`, `useComponent`, and `useHumanInTheLoop`. Styles use `@copilotkit/react-core/v2/styles.css`. The SPA uses an absolute runtime URL. The explicit multi-route client setting avoids older wrapper transport defaults. Current documentation supports Vite and a separately hosted Node runtime. [React SPA guide](https://docs.copilotkit.ai/react-spa)
 
 The server uses `BuiltInAgent` and `CopilotRuntime` from `@copilotkit/runtime/v2`, and `createCopilotExpressHandler` from `@copilotkit/runtime/v2/express`. The handler is mounted behind application authentication and origin checking, with its permissive default CORS disabled. Runtime discovery uses `/api/copilotkit/info`; discovery alone is not a successful model call. [Runtime endpoints](https://docs.copilotkit.ai/backend/runtime-endpoints)
 
-Installed-package verification on 2026-09-12 successfully imported and constructed those exports. The runtime's Express adapter declares Express 4 router types while this app hosts Express 5; the mount contains one documented middleware compatibility assertion. `runtime.test.ts` exercises the real adapter: agent discovery returns 200, an unknown-agent request returns 404 through the parsed-body bridge, and open-ended generative UI/A2UI are disabled. Both tests passed without a model call or credentials.
+Installed-package verification on 2026-09-12 successfully imported and constructed those exports. The runtime's Express adapter declares Express 4 router types while this app hosts Express 5; the mount contains one documented middleware compatibility assertion. `runtime.test.ts` exercises the real adapter: agent discovery returns 200, an unknown-agent request returns 404 through the parsed-body bridge, and open-ended generative UI/A2UI are disabled. Its six tests also verify the selected OpenRouter Chat Completions URL/model, `store:false`, and a complete synthetic streamed run through an injected transport. These checks passed without a real model-provider request or account credential; they do not establish live OpenRouter access.
 
 The live configuration explicitly sets `maxSteps:1`, `maxOutputTokens:1800`, `maxRetries:0`, and `providerOptions.openai.store:false`. The selected `InMemoryAgentRunner` limits retained conversation history to 20 threads, 20 runs per thread, and a 16 MiB cross-thread history target. Those limits do not bound a single active stream, and chat history is not durable across server restarts. Mission records and pending proposals remain durable in the application database. Installed AI SDK/OpenAI adapter peer declarations accept the selected Zod 4.1.12; a newer optional integration's peer warning does not establish a failure of this tested runtime path.
 
 The starter's [AppControl](https://github.com/CopilotKit/agents-everywhere-starter-kit/blob/main/apps/web/src/components/app-control.tsx) demonstrates context and navigation/proposal tools. Its [GenerativeUI](https://github.com/CopilotKit/agents-everywhere-starter-kit/blob/main/apps/web/src/components/generative-ui.tsx) demonstrates controlled components and human feedback. Mission Control follows those integration patterns with its own mission components and durable approval boundary. Streamed component arguments can be partial; a rendered approval-looking card is never authorization by itself.
 
-OpenAI credentials remain server-side. `OPENAI_MODEL` is configurable because model availability is account-specific. Structured proposal generation uses a schema-constrained server call and validates its result again before saving a proposal. Official SDK support includes `responses.parse` and `zodTextFormat`; refusals and missing parsed output must fail visibly. [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+The server selects one vendor with `MODEL_PROVIDER`: `openrouter` by default, or `openai` for direct OpenAI. OpenRouter uses server-only `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (default `openai/gpt-5.6-luna`); direct OpenAI uses `OPENAI_API_KEY` and `OPENAI_MODEL` (default `gpt-5-mini`). `MODEL_MODE=live` must be explicit. Missing keys and vendor errors do not try another vendor or select fixture mode. Task `PROVIDER_MODE` is independent.
 
-The extracted structured-result boundary has 13 passing deterministic tests without an OpenAI call. It validates exact source excerpts and scoped references, proposes an explicit optional-to-required upgrade when supported, reuses existing task coverage while preserving estimates/dependencies/blockers, and leaves uncertain matches unchanged. This validates application handling of controlled results, not the accuracy of an actual model response.
+For CopilotKit streaming, the server constructs a language model using the installed AI SDK OpenAI adapter. OpenRouter uses explicit `.chat(...)` and `https://openrouter.ai/api/v1`; direct OpenAI uses `.responses(...)` and `https://api.openai.com/v1`. The constructed language model is passed into `BuiltInAgent`, avoiding ambiguity between a vendor model name and a transport provider prefix. The explicit `.chat(...)` selection for OpenRouter matters because the adapter's default is the Responses API. [OpenRouter quickstart](https://openrouter.ai/docs/quickstart), [AI SDK OpenAI provider](https://ai-sdk.dev/providers/ai-sdk-providers/openai)
+
+Structured plan and evidence generation use `chat.completions.parse` with a strict JSON Schema for OpenRouter, and `responses.parse` for direct OpenAI. OpenRouter structured requests require parameter support and disable backup provider routing (`require_parameters:true`, `allow_fallbacks:false`). Both paths request `store:false` and validate parsed results against the application schema before saving a proposal. A configured model must support the structured-output and tool capabilities required by the workflow. Refusals, malformed output, and missing parsed results fail visibly; accepted evidence cannot itself approve a change.
+
+The extracted structured-result boundary has 13 passing deterministic tests without a model-provider call. It validates exact source excerpts and scoped references, proposes an explicit optional-to-required upgrade when supported, reuses existing task coverage while preserving estimates/dependencies/blockers, and leaves uncertain matches unchanged. This validates application handling of controlled results, not the accuracy of an actual model response.
 
 `MODEL_MODE=fixture` explicitly selects deterministic demo suggestions and disables real model conversation. A model/network failure in live mode remains an error; it does not silently produce a fixture result. Live streaming and account access remain unverified until configured and exercised.
 
@@ -107,3 +112,5 @@ Exa supplies keys through its dashboard. The currently documented request is `PO
 ## Starter attribution
 
 The repository began as a small README and gitignore, not a checked-out incident application. Integration choices were informed by the official starter source and documentation listed above. The mission contracts, schema enforcement, dependency scheduling, capture flow, approval/outbox execution, provider adapters, persistence, and application interface are Mission Control functionality. No starter incident data is presented as live mission data.
+
+The workspace upgrade extends the task-only surface with a separately audited [Ambiguous workspace matrix](ambiguous-capabilities.md) and [native routine schema mapping](native-workflow-mapping.md). Public OpenAPI snapshot checked 2026-09-12: API build `3e72fc413515b67af7472056bfbf28da5bcd8515`, SHA-256 `966db2d7f0f6d07db140679373db3b229a14b9b3deab8d9df9b6490fc772f59c`. Paths and payload fields come from that schema, not inferred MCP names. The installed CopilotKit remains React core 1.70.1/runtime 1.70.3 with v2 imports and the existing AG UI override. Its [official v2 migration reference](https://docs.copilotkit.ai/migrate/v2) confirms controlled components, frontend tools and context hooks; no framework migration was performed.

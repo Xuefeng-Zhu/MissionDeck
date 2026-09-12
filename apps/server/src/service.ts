@@ -193,7 +193,7 @@ export class MissionService {
       const m=await this.get(id,scope,q);const evidence=prepareCapture({id:randomUUID(),text:raw.text??raw.excerpt??'',title:raw.title,sourceUrl:raw.sourceUrl,capturedAt:raw.capturedAt,captureMethod:raw.captureMethod,fixture:raw.fixture},this.now());evidence.truncated ||= !!raw.truncated;
       if(m.lifecycle==='completed'||m.lifecycle==='archived')throw new HttpError(409,'Reopen this mission before accepting new evidence.');
       const duplicates=findDuplicateEvidence(m.evidence,evidence);if(duplicates.exact)return {mission:m,duplicate:true,summary:'This exact excerpt was already accepted. No task was created.'};
-      const analysis=fixtureAnalysis?analyzeEvidence(m,evidence,this.now()):{summary:'Accepted excerpt saved for OpenAI impact analysis.',proposal:undefined};
+      const analysis=fixtureAnalysis?analyzeEvidence(m,evidence,this.now()):{summary:'Accepted excerpt saved for model impact analysis.',proposal:undefined};
       m.evidence.push(evidence);this.touch(m);
       let proposal=analysis.proposal;
       if(proposal){proposal={...proposal,baseRevision:m.revision};proposal.payloadHash=proposalHash(proposal);m.proposals.push(proposal);}

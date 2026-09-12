@@ -11,4 +11,6 @@ await service.recoverInterruptedOperations();
 const app=await createApp(service);
 const server=app.listen(config.PORT,'127.0.0.1',()=>console.log(`Mission Control: http://127.0.0.1:${config.PORT} · provider=${config.PROVIDER_MODE} · model=${config.MODEL_MODE} · database=${config.DATABASE_MODE}. Pair locally using pnpm pairing-code.`));
 void service.drain();
-for(const signal of ['SIGINT','SIGTERM'] as const)process.on(signal,()=>server.close(()=>{void db.close().then(()=>process.exit(0));}));
+await db.query('DELETE FROM temporary_context WHERE expires_at<=now()');
+const contextCleanup=setInterval(()=>{void db.query('DELETE FROM temporary_context WHERE expires_at<=now()').catch(()=>{});},60_000);contextCleanup.unref();
+for(const signal of ['SIGINT','SIGTERM'] as const)process.on(signal,()=>{clearInterval(contextCleanup);server.close(()=>{void db.close().then(()=>process.exit(0));});});

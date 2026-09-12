@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { config } from './config.js';
 import { missionSchema, type Mission } from '@mission/domain';
@@ -54,8 +54,23 @@ export async function openDatabase(options?: { memory?: boolean; path?: string }
     const query:Query = (sql,params) => local.query(sql,params);
     db = new Database(query,fn=>local.transaction(tx=>fn((sql,params)=>tx.query(sql,params))),()=>local.close());
   }
-  const sql=await readFile(new URL('../migrations/001_initial.sql',import.meta.url),'utf8');
-  // No migrations downloaded or interpolated at runtime.
-  for(const statement of sql.split(';').map(s=>s.trim()).filter(Boolean)) await db.query(statement);
+  await applyMigrations(db);
   return db;
+}
+
+/** Trusted repository migrations only. Each version and its statements commit atomically. */
+export async function applyMigrations(db:Database,directory=new URL('../migrations/',import.meta.url)):Promise<void> {
+  const files=(await readdir(directory)).filter(name=>/^\d{3,}_[a-z0-9_]+\.sql$/.test(name)).sort((a,b)=>Number(a.split('_')[0])-Number(b.split('_')[0]));
+  const versions=new Set<number>();
+  for(const file of files){const version=Number(file.split('_')[0]);if(versions.has(version))throw new Error(`Duplicate migration version ${version}`);versions.add(version);}
+  await db.transaction(async q=>{await q('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');});
+  for(const file of files){
+    const version=Number(file.split('_')[0]);const sql=await readFile(new URL(file,directory),'utf8');
+    await db.transaction(async q=>{
+      if((await q('SELECT version FROM schema_migrations WHERE version=$1',[version])).rows.length)return;
+      // These additive migrations contain ordinary DDL only, no procedural bodies.
+      for(const statement of sql.split(';').map(s=>s.trim()).filter(Boolean))await q(statement);
+      await q('INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING',[version]);
+    });
+  }
 }

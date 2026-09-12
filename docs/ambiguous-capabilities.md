@@ -1,0 +1,53 @@
+# Ambiguous workspace capability audit — 2026-09-12
+
+The official [OpenAPI schema](https://app.ambiguous.ai/api/openapi.json) was retrieved successfully over HTTPS. No credentials or authorized test workspace were present, and no authenticated discovery or provider writes were performed. The matrix separates documented capabilities from implemented paths and live proof.
+
+| Application | Official operation/schema evidence | Implemented path | Acceptance gap |
+|---|---|---|---|
+| Docs | `GET/POST /api/documents`; `GET/PATCH /api/documents/{id}`; CreateDocumentInput, UpdateDocumentInput, DocumentEnvelope | Selected-object reads; restricted create; explicit full replacement review; pre-write fingerprint; acknowledgment/read-back comparison | Documented but untested live; no conditional-write protection against a concurrent write between read and update. Block-id operations are documented but not implemented in this adapter. |
+| Sheets | `GET /api/sheets/{id}`; `PATCH /api/sheets/{id}/cells`; UpdateCellsInput | Selected reads; explicit fixture artifact/row data | Update item schema is unconstrained and does not specify reliable literal-versus-formula representation. Live writes fail closed. Real range-aware preserving updates remain an implementation/verification gap. |
+| Slides | `POST /api/slides`; `GET /api/slides/{id}/data`; `PATCH /api/slides/{id}/slides/{index}` | Selected reads, native empty restricted deck create and explicitly selected slide notes patch/read-back; fixture rich presentation output | UpdateSlideInput documents notes and full-replace elements, but elements/layout are unconstrained. Rich native editable slides not implemented; narrow native paths contract tested, not live. |
+| Mail | `POST /api/mail/drafts`; `POST /api/mail/send`; `GET /api/mail/{id}`; DraftCreateInput/SendEmailInput/EmailResponse | Explicit selected message read, persisted **local email proposal**, native plain-text draft create with read-back | Native draft and send contracts tested, not live. Send mapping uses Idempotency-Key and exact recipient/body/subject/provider sent-status read-back; the separate consequential review route requires explicit one-off sharing authorization. No claim of saved native draft, Gmail access, or delivery. |
+| Chat | `GET/POST /api/channels/{channel_id}/messages`; single-message GET | Selected channel read (latest 20), persisted local chat proposal, reviewed native post/reply mapping | Adapter verifies complete private/DM roster, actor membership, exact approved UUID audience, absence of mentions, and parent channel for replies before posting/read-back. Separate communication review is required; no live test authorization. No messages sent. |
+| Calendar | Selected `GET /api/calendars/events/{id}`; `GET/POST /api/calendars/{calendar_id}/events`; availability/conflict APIs | Selected event read; timezone/time-bounded local meeting proposal; native create/update mapping | Adapter verifies owned unpublished local calendar, matching timezone, direct user-only ACL, no pending shares, complete per-person free/busy and no conflicts, then exact event read-back. Separate invitation review is required; no live test authorization. Unknown availability is never free time. |
+| Tasks | Existing `/api/tasks` CRUD adapter | Existing approvals, durable task operations, pre-write fingerprint and read-back preserved | No new live proof. No documented native task idempotency/conditional write used. |
+| Automations | `/api/automations`, node-types, enable/disable, runs/get/cancel and invoke are documented | See native workflow mapping and routine implementation | Node schemas require actual authorized discovery; no fake workflow or run IDs. |
+| Assistant | Bounded delegation must have enforceable permissions | Disabled | Prompt instructions are not an execution boundary. |
+
+## Pagination, retries and uncertain outcomes
+
+Document list documents `limit` 1–200, offset and cursor. Chat message lists document limit default 50/cap 100 with cursor/before/after and channel scope. Calendar scoped lists document start/end, timezone, cursor and limit. This adapter performs selected-object reads only, so it does not auto-page or mirror collections.
+
+Mail send documents `Idempotency-Key` (also `idempotency_key` in body): same key and parameters returns the original send; different parameters returns 409. This guarantee is specific to mail send; it is not inferred for tasks, documents, calendars, or chat. Chat `thread_key` stitches top-level messages into a thread, not a general exactly-once delivery guarantee.
+
+HTTP/transport failures never become fixture successes. Post-write timeouts and failed read-back remain outcome unknown. Durable artifact approvals are consumed atomically before work; attempts and results persist locally, and replay is refused. Restarted `running` entries must be inspected as unconfirmed, not blindly retried. Cross-application work is not atomic.
+
+## Scope and privacy
+
+Local session identities remain `local-user`/`local-workspace`; provider user/workspace IDs must match reviewed configuration before native access. Artifact approvals bind full plans, selected source hashes, actor/workspace, mission revision and expiry. Only source references and intentional approved artifact content persist; communications require separate categories and authorized source/destination audiences. The ordinary artifact route exposes private-artifact approval only. The separate consequential route requires exact displayed digest, a single action category and explicit source-sharing acknowledgment. Fixtures never send or invite.
+
+No endpoint permits arbitrary authenticated URLs. Selected IDs are UUID-validated, host/path allowlisted, redirects refused, credentials kept server-side, content rendered as text, and provider output cannot authorize actions. HTML/script execution and model-generated native operations are not supported.
+
+## Review expiry and restart recovery
+
+The browser submits the digest displayed with the stored plan; approval expiry is ten minutes from plan creation, never renewed by clicking Execute. GET inspection persists prior-process running attempts as outcome unknown. Returned live artifacts are retained in the operation ledger and exposed alongside fixture artifacts. Review/execute replay remains refused across server restarts. Native mail draft and slides narrow paths have transport contract tests, which are not live proof.
+
+## Additional verification limits
+
+Document writes accept Markdown according to CreateDocumentInput; the response is ProseMirror JSON. This adapter verifies simple plain-text equivalence, while authoring transformations it cannot compare remain outcome unknown with the accepted provider ID. Mail draft read-back checks the subject and plain-text body, and Slides notes check the exact selected slide index. Matching acknowledgment and read-back alone cannot establish intended payload success.
+
+Read-only reconciliation is available for outcome-unknown operations with returned provider IDs. It compares selected native content with the stored exact plan, preserves uncertain conversion cases, and never retries a write. Closed missions refuse new artifact plans/execution. Fixture tracker updates use stable evidence row keys, literal string cells and capture timestamps while preserving unrelated rows. Native sheet encoding remains blocked.
+
+## Concrete destination scope limits from official schemas
+
+`ChannelDetailResponse.members` contains `ChannelMember.user_id`; `Channel.member_count` permits checking roster completeness. `ChannelType` distinguishes workspace-wide `public` from invite-only `private`/`dm`. The adapter rejects public channels, incomplete rosters, membership changes, and mentions. No conditional membership-and-post transaction is documented: a concurrent membership/visibility change between preflight and write remains a native race limitation.
+
+`CalendarResponse` exposes owner/workspace/timezone/publish_token/source. `PermissionListResponse.permissions` contains `CalendarPermissionEntry` of user/team type, with optional pending_shares. The adapter refuses team grants (no expanded effective membership here), missing/remaining pending-share data, published or external calendars, and non-owned calendars. `AvailabilityResponse.availability` and `ConflictsResponse.conflicts` are maps; neither schema promises complete keys or a permission-status field. The adapter requires explicit entries for every attendee and actor and refuses omitted coverage. Unsupported audience representations and incomplete coverage are concrete capability restrictions rather than evidence of availability. Changes between preflight and commit remain a race without documented conditional calendar writes. Only ordinary events are eligible for updates; dispatcher/OOO event types are refused.
+
+Native Mail send uses `Idempotency-Key`; `delivery_status: sent` plus a timestamp establishes the provider's sent record, not recipient inbox delivery or receipt. Pending undo, suppression, failure, missing recipient coverage, or body differences are outcome unknown. No retry occurs automatically. The separate consequential route and CommunicationReview require explicit disclosure consent for the exact stored outgoing payload and named recipients. Its composer prepares a distinct single-category plan; ordinary private approvals cannot execute it. Fixtures and missing live configuration refuse execution. These adapters have synthetic contract tests, not live proof.
+
+## Separate consequential review
+
+Saving a communication plan records a **proposed** audience for each referenced locally saved evidence excerpt; this does not authorize disclosure. The `/execute-consequential` boundary requires the displayed digest, `acknowledgeSourceSharing: true`, and a matching communication/invitation category. It derives recipients from the stored plan, never from the execution request, and refuses mixed categories. The UI displays exact outgoing content, recipients, destinations and source excerpts; sends/invitations require a separate checked acknowledgment. This grants one-off disclosure of the user's reviewed mission excerpts, not provider ACL changes, future runs, attachments, or arbitrary workspace records. All current local session identities remain explicitly local, not hosted multi-tenancy.
+
+Before each operation the router rechecks authenticated mission revision/lifecycle, review expiry and live session validity. Source/contract changes or session revocation stop later operations in a batch. Already-transmitted messages cannot be recalled. No consequential route was invoked against a real provider during implementation.

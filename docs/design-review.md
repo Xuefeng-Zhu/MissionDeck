@@ -7,7 +7,7 @@ Rendered evidence:
 - [Desktop workspace, 1440 pixels wide](../artifacts/screenshots/mission-desktop.png)
 - [Narrow workspace, 390 pixels wide](../artifacts/screenshots/mission-panel-390.png)
 
-Both rendered images and the concept were inspected directly with the image viewer. The concept combines a desktop surface and a 400-pixel panel on one board, so the live screenshots capture those surfaces separately. The browser test also checks 360, 400, and 480 pixels without horizontal overflow. A narrow full-page viewport demonstrates responsive layout, not the native Chrome side-panel gesture itself.
+Both rendered images and the concept were inspected directly with the image viewer. The concept combines a desktop surface and a 400-pixel panel on one board, so the earlier fixture screenshots capture those surfaces separately. The prior fixture browser run also checked 360, 390, 400, and 480 pixels without horizontal overflow. These screenshots predate the OpenRouter setup-copy update. A narrow full-page viewport demonstrates responsive layout, not the native Chrome side-panel gesture itself.
 
 ## Fidelity ledger
 

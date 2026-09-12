@@ -118,7 +118,7 @@ export function analyzeEvidence(mission: Mission, evidence: Evidence, now: strin
   if (duplicates.exact) return { status: 'duplicate', summary: 'This exact excerpt is already accepted. No additional task is proposed.', duplicateEvidenceId: duplicates.exact.id, possibleDuplicateEvidenceIds: [] };
   if (duplicates.possible.length) return { status: 'possible_duplicate', summary: 'This resembles existing evidence. Review and merge the excerpts before proposing another task.', possibleDuplicateEvidenceIds: duplicates.possible.map((item) => item.id) };
   const matchesVideo = /(?:two[ -]minute|2[ -]minute).{0,60}(?:demo\s+)?video.{0,60}(?:required|must|mandatory)|(?:required|must|mandatory).{0,60}(?:two[ -]minute|2[ -]minute).{0,60}(?:demo\s+)?video/i.test(evidence.excerpt);
-  if (!matchesVideo) return { status: 'no_change', summary: 'Evidence saved. The fixture analyzer did not identify its supported demo-video requirement. Enable OpenAI for broader requirement extraction.', possibleDuplicateEvidenceIds: [] };
+  if (!matchesVideo) return { status: 'no_change', summary: 'Evidence saved. The fixture analyzer did not identify its supported demo-video requirement. Enable a live model for broader requirement extraction.', possibleDuplicateEvidenceIds: [] };
   const existingCriterion = mission.criteria.find((criterion) => /demo.*video|video.*demo/i.test(criterion.title));
   const committedTask = existingCriterion && mission.tasks.find((task) => !task.optional && !task.deferred && task.criterionIds.includes(existingCriterion.id));
   const pendingCoverage = mission.proposals.some((proposal) => {
