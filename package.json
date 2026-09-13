@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "playwright test",
+    "test:execution": "playwright test --config playwright.execution.config.ts",
     "db:migrate": "pnpm --filter @mission/server db:migrate",
     "pairing-code": "tsx scripts/pairing-code.ts"
   },

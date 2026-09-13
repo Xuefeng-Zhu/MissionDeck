@@ -1,0 +1,98 @@
+{
+  "demoId": "missiondeck-hackathon-video-2026-09-12",
+  "label": "MissionDeck hackathon demo",
+  "agentNames": [
+    "Codex"
+  ],
+  "requirements": {
+    "title": "MissionDeck requirements",
+    "sections": [
+      {
+        "heading": "Mission",
+        "paragraphs": [
+          "Turn one human mission into assigned work and shared deliverables inside Ambiguous.ai."
+        ]
+      },
+      {
+        "heading": "Human and agent collaboration",
+        "paragraphs": [
+          "The human defines success and reviews the result. Agents break down the work, draft requirements, and prepare presentation material."
+        ]
+      },
+      {
+        "heading": "Acceptance criteria",
+        "paragraphs": [
+          "Every task has a named human or agent owner and clear completion criteria.",
+          "Requirements, presentation slides, and discussion stay in the same Ambiguous workspace.",
+          "Human approval is visible before the mission is considered complete."
+        ]
+      },
+      {
+        "heading": "Demo scope",
+        "paragraphs": [
+          "The recording uses the mission runner requirements document, native editable slides, and a private channel shared only with the human owner and Codex.",
+          "Agent contributions are authored by Codex and posted through the human-authorized integration. Native chat authors are not impersonated."
+        ]
+      }
+    ]
+  },
+  "deck": {
+    "title": "MissionDeck demo slides",
+    "slides": [
+      {
+        "eyebrow": "Agents Everywhere",
+        "title": "MissionDeck",
+        "subtitle": "One mission. A human + agent team.",
+        "lines": [
+          "State the outcome once",
+          "Work together in Ambiguous"
+        ],
+        "footer": "Demo: bounded MissionDeck text worker + native Slides/Chat helper."
+      },
+      {
+        "eyebrow": "01 / Requirements",
+        "title": "Agent work you can inspect",
+        "lines": [
+          "Three tasks with named assignees",
+          "Requirements drafted from supplied context",
+          "Native document saved and verified"
+        ],
+        "footer": "Demo: bounded MissionDeck text worker + native Slides/Chat helper."
+      },
+      {
+        "eyebrow": "02 / Human review",
+        "title": "Human judgment controls the next step",
+        "lines": [
+          "Review the requirements in chat",
+          "Save the decision with its task",
+          "The next agent task waits for that review"
+        ],
+        "footer": "Demo: bounded MissionDeck text worker + native Slides/Chat helper."
+      },
+      {
+        "eyebrow": "03 / Shared workspace",
+        "title": "The work stays with the team",
+        "lines": [
+          "Requirements + storyboard + demo slides",
+          "Task ownership and dependencies",
+          "A shared conversation in Ambiguous"
+        ],
+        "footer": "Demo: bounded MissionDeck text worker + native Slides/Chat helper."
+      }
+    ]
+  },
+  "channel": {
+    "name": "missiondeck-hackathon-demo",
+    "description": "Recording workspace for the MissionDeck two-minute human + agent collaboration demo. Demo content only."
+  },
+  "messages": [
+    {
+      "speaker": "MissionDeck",
+      "content": "MissionDeck agent update (server drafting worker): I have broken the mission into three tasks. I am preparing the requirements brief, then I will wait for human scope feedback before drafting the demo storyboard. Native task: https://app.ambiguous.ai/tasks?task=9cc3471e-6723-4477-918d-de175258eb05"
+    },
+    {
+      "speaker": "MissionDeck",
+      "content": "MissionDeck demo integration: The requirements document and four-slide demo deck are saved and verified in Ambiguous. Requirements: https://app.ambiguous.ai/docs/207d1252-33cf-48e5-afc3-068c9e92c992\nDemo slides: https://app.ambiguous.ai/slides/dbe3223c-33e0-4b69-9f9f-0bf01720f68e\nThe storyboard task is waiting for the review to be saved with the mission. Chat updates are posted through the connected human account; drafting runs use the MissionDeck server worker."
+    }
+  ]
+}

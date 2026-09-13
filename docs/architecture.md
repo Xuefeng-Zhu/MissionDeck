@@ -1,5 +1,21 @@
 # Architecture
 
+The [mission execution product requirement](mission-execution.md) defines the target: Ambiguous holds tasks, real human/agent assignments, and mission artifacts, while MissionDeck coordinates automatic execution. The execution flow below is implemented for bounded text work. The original planning-only architecture follows it and remains available as a separate workflow.
+
+## Mission execution
+
+`execution-router.ts` accepts an authenticated mission start with explicit selected human/agent identities and task/run limits. `execution-service.ts` records the mission authority and a request hash atomically; a repeated start request returns the same mission. A server worker acquires a durable per-mission lease, generates and validates the task graph, writes native assignments/dependencies, and saves a shared mission brief before dispatching eligible work.
+
+`execution-runner.ts` makes bounded, structured model calls for drafting or synthesis from the supplied context and saved dependency documents. It has no tools, network browser, shell, or provider mutation capability. Unsupported work is assigned to humans or reported blocked. The selected Ambiguous agent identity owns the native task; execution is performed by MissionDeck's server worker, not a native external agent process.
+
+`execution-provider.ts` is the only external-write boundary for this flow. It supports discovered workspace assignees, native tasks, exact dependency edges, restricted documents, and sharing with explicitly selected workspace members. Every mutation has an immutable journal entry and verified read-back. An interrupted mutation becomes uncertain and cannot be blindly repeated; a retained or manually identified provider record can be reconciled. Fixture mode has separate persisted, visibly simulated records.
+
+Human tasks wait for dependencies. Feedback supplied through MissionDeck is saved as a shared review document; a native Ambiguous task marked done must also contain review feedback before dependent work proceeds. Agent output is retained before artifact persistence, so a failed save can resume without another model run. Final completion saves an outcome-verification document and atomically attests the mission criteria. Closing the panel does not stop the server worker. Pause stops new work; cancellation aborts the model and retains records already written.
+
+Execution records and operation journals use scoped `upgrade_records`; migration 003 adds unique start-request identity and worker leases. Managed execution missions reject mutations through legacy planning/proposal endpoints. Model/workspace mode changes block continuation, preventing simulated output from being written into a live execution after restart.
+
+## Original planning-only workflow
+
 Mission Control separates contextual assistance from authority. A person approves a precise persisted proposal; the server validates and records that approval before executing any provider write. The extension is a view and a user-triggered capture surface, not the workflow database or a long-running worker.
 
 ```mermaid

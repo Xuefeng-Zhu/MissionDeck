@@ -1,0 +1,30 @@
+{
+  "demoId": "agents-everywhere-missiondeck-demo",
+  "label": "Agents Everywhere demo",
+  "agentNames": ["Codex", "Hermes"],
+  "requirements": {
+    "title": "MissionDeck requirements",
+    "sections": [
+      {"heading": "Mission", "paragraphs": ["Turn one human mission into assigned work and shared deliverables inside Ambiguous.ai."]},
+      {"heading": "Human and agent collaboration", "paragraphs": ["The human defines success and reviews the result. Agents break down the work, draft requirements, and prepare presentation material."]},
+      {"heading": "Acceptance criteria", "paragraphs": ["Every task has a named human or agent owner and clear completion criteria.", "Requirements, presentation slides, and discussion stay in the same Ambiguous workspace.", "Human approval is visible before the mission is considered complete."]},
+      {"heading": "Demo scope", "paragraphs": ["This dedicated demo contains a real native document, editable slides, and a private channel shared only with the human owner, Codex, and Hermes.", "Agent contributions are authored by Codex and posted through the human-authorized integration. Native chat authors are not impersonated."]}
+    ]
+  },
+  "deck": {
+    "title": "From mission to shared results",
+    "slides": [
+      {"eyebrow": "Agents Everywhere", "title": "State the mission.\nBuild it together.", "lines": ["One human goal becomes clear, assigned work.", "People and agents collaborate inside Ambiguous."]},
+      {"eyebrow": "01 / Requirements", "title": "The work starts with clarity.", "lines": ["The human sets the outcome and constraints.", "Codex drafts requirements and acceptance criteria.", "Every decision stays in a shared native document."]},
+      {"eyebrow": "02 / Collaboration", "title": "A shared workspace for the team.", "lines": ["Requirements, slides, tasks, and chat stay connected.", "Human feedback gives agents the next direction.", "Named roles make responsibility visible."]},
+      {"eyebrow": "03 / Results", "title": "Deliverables you can open and review.", "lines": ["A native requirements document.", "Editable presentation slides.", "A focused discussion with clear human review."]}
+    ]
+  },
+  "channel": {"name": "demo-missiondeck-agents-everywhere", "description": "Dedicated demonstration of human-led missions and agent-authored requirements, slides, and discussion. No external participants."},
+  "messages": [
+    {"speaker": "Human", "content": "Our mission: show how MissionDeck turns a goal into clear work with human and agent owners. We need requirements, a short demo deck, and a shared place for feedback."},
+    {"speaker": "Codex", "content": "I drafted the requirements and acceptance criteria. The scope keeps the human in control and the work visible in Ambiguous.\n\n[Open requirements]({{documentUrl}})"},
+    {"speaker": "Human", "content": "Keep the demo focused on the complete loop: state the mission, assign the work, create the artifacts, and review the result. Show real editable outputs."},
+    {"speaker": "Codex", "content": "The four-slide walkthrough is ready with the problem, workflow, collaboration, and results.\n\n[Open the demo slides]({{slidesUrl}})\n\nRequirements and presentation now live alongside this discussion for review."}
+  ]
+}

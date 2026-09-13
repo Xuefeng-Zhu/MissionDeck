@@ -15,6 +15,8 @@ import {createRoutinesRouter} from './routines-router.js';
 import { createArtifactRouter } from './artifact-router.js';
 import { createContextRouter } from './context-router.js';
 import { ProviderError } from './providers/index.js';
+import { createExecutionRouter, createExecutionService } from './execution-router.js';
+import type { ExecutionService } from './execution-service.js';
 
 const line=z.string().trim().min(1).max(500);
 const contractInput=z.object({goal:line,deadline:z.string().datetime({offset:true}),timezone:line,criteria:z.array(z.object({id:z.string().optional(),title:line,required:z.boolean(),verificationMethod:line}).passthrough()).min(1).max(30),outcome:line.optional(),constraints:z.array(line).optional(),forbiddenActions:z.array(line).optional(),approvedCapabilities:z.array(line).optional(),assumptions:z.array(line).optional(),questions:z.array(line).optional(),unresolvedQuestions:z.array(line).optional(),confirmed:z.boolean().optional(),humanOwner:z.string().optional()});
@@ -22,7 +24,7 @@ const scope=(req:Request)=>(req as AuthenticatedRequest).principal;
 const param=(req:Request,name:string)=>z.string().max(160).regex(/^[\w.:-]+$/).parse(req.params[name]);
 const reply=(res:Response,m:Mission,service:MissionService)=>res.json({mission:m,health:service.health(m)});
 
-export async function createApp(service:MissionService,options?:{pairingCode?:string;enableCopilot?:boolean}) {
+export async function createApp(service:MissionService,options?:{pairingCode?:string;enableCopilot?:boolean;executionService?:ExecutionService}) {
   const app=express();const db=service.db;const code=options?.pairingCode??await pairingCode();const planner=new Planner();const selectedModel=resolveModelConfig();
   const pairedOrigins=new Set(config.origins);const origins=await db.query<{origin:string}>('SELECT DISTINCT origin FROM sessions WHERE expires_at>now()');origins.rows.forEach(r=>pairedOrigins.add(r.origin));
   const attempts=new Map<string,{count:number;reset:number}>();
@@ -51,6 +53,14 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
     const token=await issueSession(db,origin);pairedOrigins.add(origin);res.json({token,expiresIn:86400});
   });
   app.use('/api',authMiddleware(db));
+  const executionService=options?.executionService??createExecutionService(db);
+  app.locals.executionService=executionService;
+  app.use('/api',createExecutionRouter(executionService));
+  app.use('/api',async(req,_res,next)=>{
+    const match=/^\/missions\/([\w.:-]+)(?:\/|$)/.exec(req.path);
+    if(req.method!=='GET'&&match&&await executionService.managed(match[1]!,scope(req)))throw new HttpError(409,'This mission is managed by the execution worker. Use its task, review, and mission controls.');
+    next();
+  });
   if(config.WORKSPACE_UPGRADE_ENABLED){app.use(createContextRouter(service));app.use('/api',createArtifactRouter(service));app.use(createRoutinesRouter(service));}
   app.post('/api/session/revoke',async(req,res)=>{await db.transaction(async q=>{await q('DELETE FROM sessions WHERE token_hash=$1',[scope(req).tokenHash]);await q('DELETE FROM temporary_context WHERE owner_id=$1 AND workspace_id=$2',[scope(req).ownerId,scope(req).workspaceId]);});res.json({revoked:true});});
   app.get('/api/integrations/check',async(_req,res)=>{const capabilities=await service.provider.discover();let identity=null;try{identity=await service.provider.identity();}catch{}res.json({capabilities,identity,liveReady:service.provider.mode==='live'&&capabilities.writesEnabled,setupRequired:capabilities.setupRequired});});

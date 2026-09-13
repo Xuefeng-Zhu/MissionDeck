@@ -1,0 +1,302 @@
+{
+  "verifiedAt": "2026-09-12T22:52:52.203Z",
+  "requirementsId": "207d1252-33cf-48e5-afc3-068c9e92c992",
+  "deckId": "dbe3223c-33e0-4b69-9f9f-0bf01720f68e",
+  "deckTitle": "MissionDeck hackathon demo — MissionDeck demo slides",
+  "url": "https://app.ambiguous.ai/slides/dbe3223c-33e0-4b69-9f9f-0bf01720f68e",
+  "visibility": "restricted",
+  "ownerId": "df4460a1-40b6-458c-b003-110efe3a0490",
+  "slideCount": 4,
+  "slides": [
+    {
+      "index": 0,
+      "background": "#101522",
+      "layout": {
+        "width": 960,
+        "height": 540
+      },
+      "textElements": [
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-0-eyebrow",
+          "text": "AGENTS EVERYWHERE",
+          "fontSize": 15,
+          "color": "#C5F277",
+          "x": 78,
+          "y": 56,
+          "w": 810,
+          "h": 28
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-0-title",
+          "text": "MissionDeck",
+          "fontSize": 46,
+          "color": "#F7F8FA",
+          "x": 54,
+          "y": 118,
+          "w": 840,
+          "h": 120
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-0-subtitle",
+          "text": "One mission. A human + agent team.",
+          "fontSize": 32,
+          "color": "#C5F277",
+          "x": 56,
+          "y": 231,
+          "w": 850,
+          "h": 48
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-0-line-0",
+          "text": "•  State the outcome once",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 306,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-0-line-1",
+          "text": "•  Work together in Ambiguous",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 370,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-0-footer",
+          "text": "Demo: bounded MissionDeck text worker + native Slides/Chat helper.",
+          "fontSize": 12,
+          "color": "#97A4B9",
+          "x": 56,
+          "y": 507,
+          "w": 850,
+          "h": 22
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "background": "#101522",
+      "layout": {
+        "width": 960,
+        "height": 540
+      },
+      "textElements": [
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-1-eyebrow",
+          "text": "01 / REQUIREMENTS",
+          "fontSize": 15,
+          "color": "#C5F277",
+          "x": 78,
+          "y": 56,
+          "w": 810,
+          "h": 28
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-1-title",
+          "text": "Agent work you can inspect",
+          "fontSize": 46,
+          "color": "#F7F8FA",
+          "x": 54,
+          "y": 118,
+          "w": 840,
+          "h": 120
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-1-line-0",
+          "text": "•  Three tasks with named assignees",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 276,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-1-line-1",
+          "text": "•  Requirements drafted from supplied context",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 340,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-1-line-2",
+          "text": "•  Native document saved and verified",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 404,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-1-footer",
+          "text": "Demo: bounded MissionDeck text worker + native Slides/Chat helper.",
+          "fontSize": 12,
+          "color": "#97A4B9",
+          "x": 56,
+          "y": 507,
+          "w": 850,
+          "h": 22
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "background": "#101522",
+      "layout": {
+        "width": 960,
+        "height": 540
+      },
+      "textElements": [
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-2-eyebrow",
+          "text": "02 / HUMAN REVIEW",
+          "fontSize": 15,
+          "color": "#C5F277",
+          "x": 78,
+          "y": 56,
+          "w": 810,
+          "h": 28
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-2-title",
+          "text": "Human judgment controls the next step",
+          "fontSize": 46,
+          "color": "#F7F8FA",
+          "x": 54,
+          "y": 118,
+          "w": 840,
+          "h": 120
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-2-line-0",
+          "text": "•  Review the requirements in chat",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 276,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-2-line-1",
+          "text": "•  Save the decision with its task",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 340,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-2-line-2",
+          "text": "•  The next agent task waits for that review",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 404,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-2-footer",
+          "text": "Demo: bounded MissionDeck text worker + native Slides/Chat helper.",
+          "fontSize": 12,
+          "color": "#97A4B9",
+          "x": 56,
+          "y": 507,
+          "w": 850,
+          "h": 22
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "background": "#101522",
+      "layout": {
+        "width": 960,
+        "height": 540
+      },
+      "textElements": [
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-3-eyebrow",
+          "text": "03 / SHARED WORKSPACE",
+          "fontSize": 15,
+          "color": "#C5F277",
+          "x": 78,
+          "y": 56,
+          "w": 810,
+          "h": 28
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-3-title",
+          "text": "The work stays with the team",
+          "fontSize": 46,
+          "color": "#F7F8FA",
+          "x": 54,
+          "y": 118,
+          "w": 840,
+          "h": 120
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-3-line-0",
+          "text": "•  Requirements + storyboard + demo slides",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 276,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-3-line-1",
+          "text": "•  Task ownership and dependencies",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 340,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-3-line-2",
+          "text": "•  A shared conversation in Ambiguous",
+          "fontSize": 32,
+          "color": "#D9DFEA",
+          "x": 58,
+          "y": 404,
+          "w": 834,
+          "h": 58
+        },
+        {
+          "id": "missiondeck-hackathon-video-2026-09-12-3-footer",
+          "text": "Demo: bounded MissionDeck text worker + native Slides/Chat helper.",
+          "fontSize": 12,
+          "color": "#97A4B9",
+          "x": 56,
+          "y": 507,
+          "w": 850,
+          "h": 22
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    {
+      "type": "user",
+      "userId": "6dfd27b9-c51a-41fb-acc3-85ad7eac7a33",
+      "role": "editor"
+    }
+  ],
+  "pendingShares": 0,
+  "hasMore": false,
+  "provenance": "Native Slides GET and document permissions GET; no chat feedback imported; storyboard completion not claimed."
+}

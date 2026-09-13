@@ -4,9 +4,9 @@
 
 Mission Control helps small teams tackle ambitious projects by combining agent execution with human judgment. Large projects involve dependent tasks, changing requirements, and decisions that need people. A shared mission connects those pieces so each contributor can build on the work that came before.
 
-**Product goal:** State a mission, break it into tasks in **Ambiguous.ai**, and assign each task to a specific human or agent. Start eligible agent work automatically, use human feedback to move the project forward, and keep drafts, evidence, reviews, and final artifacts in Ambiguous, linked to their tasks and mission.
+**Product goal:** State a mission, break it into tasks in **Ambiguous.ai**, and assign each task to a specific human or agent. Start eligible agent work automatically, use human feedback to move the project forward, and keep drafts, evidence, reviews, and final artifacts in Ambiguous, linked to their tasks and mission. See the [mission execution requirements and acceptance scenario](docs/mission-execution.md).
 
-## From mission to shared work: the intended workflow
+## From mission to shared work
 
 1. **Define the outcome.** Describe the mission, constraints, and what successful completion looks like.
 2. **Break down and assign the work.** Give each task an owner, dependencies, an expected deliverable, and completion criteria. Agents handle supported drafting and synthesis; humans contribute decisions, missing information, and review.
@@ -14,13 +14,13 @@ Mission Control helps small teams tackle ambitious projects by combining agent e
 4. **Keep the work together.** Ambiguous is the shared home for tasks and artifacts. Drafts, evidence, and review results stay connected to the mission so contributors can find and reuse them.
 5. **Verify the outcome.** Check the deliverables against the mission's required results, with human verification where needed.
 
-For example, a product-launch mission can move from an agent's positioning draft to a human's review, then to an agent's final launch brief. That handoff illustrates the goal of coordinating larger projects across people and agents.
+For example, a product-launch mission can move from an agent's positioning draft to a human's review, then to an agent's final launch brief. That handoff is the first implemented flow toward coordinating larger projects across people and agents.
 
 The Chrome side panel keeps the mission beside the pages where requirements and feedback appear. Users select and review browser context before sharing it. Mission Control coordinates the work; Ambiguous keeps the shared tasks and outputs accessible beyond a single conversation.
 
 ## Current scope
 
-The committed prototype is a Manifest V3 Chrome side panel for outcome-driven plans, explicitly accepted page evidence, persisted human approvals, and verified external task updates. This repository is named MissionDeck; the product is Mission Control.
+The current implementation includes a Manifest V3 Chrome side panel and a durable server worker for the first complete execution flow: draft from supplied context, hand off to a human, then produce a final document. Ambiguous holds the assigned tasks, dependencies, and shared documents. The server runs the selected model for the assigned agent; it does not launch a native Codex or Hermes process. This repository is named MissionDeck; the product is Mission Control.
 
 ## Run locally
 
@@ -48,6 +48,9 @@ Open Chrome's extensions page, enable Developer mode, choose **Load unpacked**, 
 
 ## What is implemented
 
+- Mission start with real workspace human/agent selection, dependency-gated drafting runs, human review, and final outcome verification.
+- Native Ambiguous task assignment, dependency edges, restricted documents shared with selected participants, and verified artifact read-back.
+- Durable execution journals, worker leases, run budgets, pause/resume/cancel, reassignment, and uncertain-write reconciliation.
 - Editable mission contracts and exact deadlines, with required and optional criteria.
 - Plan review with editable tasks, dependencies, effort estimates, and explicit approval.
 - A server-authoritative PostgreSQL state model, audit events, operation ledger, and durable outbox.
@@ -56,10 +59,14 @@ Open Chrome's extensions page, enable Developer mode, choose **Load unpacked**, 
 - Accepted evidence deduplication, missing video requirement demo, blockers, capacity scheduling, recovery diffs, and human verification.
 - Minimum extension permissions, private draft/form exclusions, secret screening, expiring capture inbox, and manual fallback.
 
-Task executors are proposed assignments. This MVP does not autonomously implement code, submit projects, publish content, or send messages. The phase-two Trigger.dev/Exa research worker remains disabled until the core live integration is verified.
+Choose **New mission → Try a sample mission → Start mission** for the launch-brief flow. Ready agent tasks run automatically; the human review releases the final drafting task. The first runner supports text drafting and synthesis from supplied material. Browsing, coding, publishing, and sending remain human work; the separate Trigger.dev/Exa research worker is still disabled. The older planning-only workflow retains its explicit proposal reviews.
+
+The complete execution flow is verified with an isolated fixture backend and Chrome. A separate real-model rehearsal completed planning, drafting, human-review handoff, and final synthesis against fixture storage. Live Ambiguous identity/roster discovery is verified; live task/document writes require a connected rehearsal. Workspace and model modes remain visibly labeled. See [the demo operator guide](docs/execution-demo.md) and [execution API evidence](docs/execution-api-discovery.md).
 
 ## Documentation and checks
 
+- [Mission execution product requirement](docs/mission-execution.md)
+- [Launch-brief execution demo](docs/execution-demo.md)
 - [Setup and live smoke workflow](docs/setup.md)
 - [Verified integration capabilities and package versions](docs/integrations.md)
 - [Architecture and field ownership](docs/architecture.md)

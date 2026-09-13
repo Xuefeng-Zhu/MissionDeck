@@ -11,3 +11,6 @@ coverage/
 playwright-report/
 test-results/
 .pnpm-store/
+
+# Generated demo recordings, captures, narration, and rendered video.
+artifacts/demo-video/

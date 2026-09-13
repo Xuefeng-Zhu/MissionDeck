@@ -1,0 +1,136 @@
+{
+  "partial": true,
+  "recording_scope": "Chrome window 19546 only; cursor; no audio; real interaction pixels",
+  "crop": [
+    0,
+    238,
+    1920,
+    774
+  ],
+  "segments": [
+    {
+      "scene": 1,
+      "source": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw.mp4",
+      "start": 16,
+      "source_duration": 12,
+      "duration": 12,
+      "crop": [
+        0,
+        238,
+        1920,
+        774
+      ],
+      "name": "Mission and source brief"
+    },
+    {
+      "scene": 2,
+      "source": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw.mp4",
+      "start": 51,
+      "source_duration": 13,
+      "duration": 13,
+      "crop": [
+        0,
+        238,
+        1920,
+        774
+      ],
+      "name": "Native assigned drafting task"
+    },
+    {
+      "scene": 3,
+      "source": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw-02.mp4",
+      "start": 35,
+      "source_duration": 17,
+      "duration": 17,
+      "crop": [
+        0,
+        238,
+        1920,
+        774
+      ],
+      "name": "Native requirements document"
+    },
+    {
+      "scene": 4,
+      "source": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw-03.mp4",
+      "start": 18,
+      "source_duration": 15,
+      "duration": 15,
+      "crop": [
+        0,
+        238,
+        1920,
+        774
+      ],
+      "name": "Saved scripted human review in native chat"
+    },
+    {
+      "scene": 6,
+      "source": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw-04.mp4",
+      "start": 9,
+      "source_duration": 18,
+      "duration": 18,
+      "crop": [
+        0,
+        238,
+        1920,
+        774
+      ],
+      "name": "Native deck, first and second slides"
+    },
+    {
+      "scene": 7,
+      "source": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw-04.mp4",
+      "start": 27,
+      "source_duration": 10,
+      "duration": 10,
+      "crop": [
+        0,
+        238,
+        1920,
+        774
+      ],
+      "name": "Native slide three in editor"
+    }
+  ],
+  "needs_parent_final_take": [
+    5,
+    8,
+    9
+  ],
+  "exclusions": [
+    {
+      "source": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw-03.mp4",
+      "start": 33,
+      "reason": "Local pairing setup: never use in export."
+    }
+  ],
+  "notes": [
+    "Verified by ffprobe and selected extracted frames. Raw02 at33s was blank document loading; corrected scene03 to35..52.",
+    "Scene02 starts with task detail in a loading list and then full task page; visible task executor Codex/server drafting worker is real.",
+    "Scene07 native slideshow action did not appear in captured window; source shows the actual slide-three editor. Caption as native editor, or replace with parent final take if actual presentation is captured.",
+    "No screenshots are source assets; extraction was inspection only."
+  ],
+  "sources": [
+    {
+      "file": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw.mp4",
+      "startedAtUTC": "2026-09-12T23:07:46Z",
+      "duration": 64.101667
+    },
+    {
+      "file": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw-02.mp4",
+      "startedAtUTC": "2026-09-12T23:10:45Z",
+      "duration": 55.435
+    },
+    {
+      "file": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw-03.mp4",
+      "startedAtUTC": "2026-09-12T23:11:49Z",
+      "duration": 55.2
+    },
+    {
+      "file": "/Users/frank/mygit/MissionDeck/artifacts/demo-video/recordings/user-flow-raw-04.mp4",
+      "startedAtUTC": "2026-09-12T23:13:26Z",
+      "duration": 55.513333
+    }
+  ]
+}

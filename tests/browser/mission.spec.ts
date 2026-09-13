@@ -25,6 +25,7 @@ test('complete fixture mission loop, controlled edits, duplicate evidence and pe
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   await pair(page);
   await page.getByRole('button',{name:'New mission',exact:true}).click();
+  await page.getByRole('button',{name:'Use planning-only setup',exact:true}).click();
   // Create through the editable contract; fixture-specific criteria keep the documented six-task scenario.
   await page.getByLabel('Outcome',{exact:true}).fill('Prepare our hackathon project for submission');
   await page.getByRole('button',{name:'Cancel',exact:true}).click();

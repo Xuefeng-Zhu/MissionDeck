@@ -1,0 +1,37 @@
+# Mission Control — Agents, Everywhere demo
+
+A two-minute recording plan for the AI Tinkerers submission. This is a **fixture demonstration of the local prototype**. Keep a small “Fixture demo · local prototype” caption visible throughout, along with the application's mode labels. The narration below is 237 words; rehearse at approximately 120 words per minute with short pauses for the review actions.
+
+## Narration and timed shots
+
+| Time | Show | Say |
+| --- | --- | --- |
+| 0:00–0:16 | Chrome with the labeled requirements page and Mission Control open in its native side panel. Hold briefly on the product name and visible fixture status. | “Meet Mission Control: a Chrome side panel that connects what you’re reading to what you’re trying to finish. This recording uses labeled fixture planning and task updates, so the workflow is reproducible.” |
+| 0:16–0:38 | Start a demo mission. Show the contract's outcome, exact deadline, and required criteria. Confirm, edit one effort estimate in the proposed plan, then choose **Approve and create tasks**. | “I start with an outcome, an exact deadline, and required success criteria. The proposed plan shows tasks, dependencies, and effort estimates. I can edit it before approving. Suggested agent assignments describe the plan; they do not mean an agent has executed the work.” |
+| 0:38–1:00 | Select “A two-minute demo video is required.” Use **Add to mission**, inspect the capture preview's source and excerpt, and accept it. Hold on the missing-requirement proposal, task dependency, and displayed schedule impact. | “On the requirements page, I find a missing deliverable: a two-minute demo video. I capture the selected text, inspect the source and excerpt, then accept it as evidence. The fixture proposes a required criterion and a video task, with its dependency and schedule impact visible.” |
+| 1:00–1:22 | Approve the displayed requirement proposal. Expand the resulting task to show its fixture ID and read-back state. Capture and accept the identical excerpt again; show the duplicate result without an extra task. | “Nothing changes externally until I approve this exact proposal. The task list then shows fixture record IDs and verified read-back. Capturing the same evidence again does not create another task. This approved change remains connected to the evidence and review that produced it.” |
+| 1:22–1:42 | Close and reopen the panel. Show retained accepted evidence and **Activity**, then **Sync now** and the same fixture task ID. Keep the sequence visibly continuous across the reopen. | “I close and reopen the panel. The mission, accepted evidence, and activity history return from the local database. Sync retrieves the same records. Progress survives the conversation, and an uncertain provider outcome stays visible instead of prompting a blind retry.” |
+| 1:42–2:00 | Open **Verify completion**. Show the required criteria and evidence/attestation controls; leave missing evidence unverified. Finish on the mission and its next task, with the product name visible. | “Finally, completion requires checking the required outcomes. A reported task status alone is insufficient. Mission Control keeps context, decisions, and verification together, so the next action is clear and the user remains in control.” |
+
+The uncertain-outcome sentence describes implemented behavior; this recording does not simulate a provider failure. Do not splice a simulated failure into the sequence or imply a live vendor outage. The fixture's video requirement illustrates the product and is not a capture of the event's actual rules.
+
+## Setup and rehearsal
+
+1. Follow [local setup](setup.md) and the [existing fixture demonstration](demo.md). Use a separate fixture server/data directory with `PROVIDER_MODE=fixture` and `MODEL_MODE=fixture`; preserve any existing live configuration and saved missions. Check port availability before starting. Build/load the unpacked extension, pair privately, and open `http://127.0.0.1:4318/fixtures/requirements.html`. Complete pairing before recording, with no pairing code, credentials, or unrelated browser tabs visible.
+2. Use the real Chrome side panel at roughly 400–480 pixels wide beside the requirements page. Enlarge text or crop the recording for readability. The wider extension-owned workspace can provide close-up inserts, but keep native panel footage for the opening and reopen sequence.
+3. Rehearse the native selection/context-menu capture before recording; it is still a documented manual acceptance gap. Check the correct source and excerpt in the preview. If selection capture fails, use the implemented manual-text path and revise the narration to “I add the requirement as a reviewed note.” Show that actual fallback instead of portraying it as successful native capture.
+4. Run the entire journey once against disposable fixture data. Confirm six initial tasks, one added video task after approval, duplicate capture without an eighth task, retained IDs after reload, and completion remaining unavailable without required verification. Record the numbers and states the app actually displays. The illustrative deadline is derived from the current time; do not present it as the event deadline.
+5. Use a fresh fixture mission for the final take. Approval expiry uses real time, so review and approve newly created proposals. Record a dry run, then trim pauses to finish at or below two minutes. Keep approvals, resulting IDs, and read-back visible; avoid edits that conceal which action produced a result.
+6. Do not turn on live task writes, send communications, invite attendees, or activate routines for this recording. Live CopilotKit chat and full Planner generation have not completed end-to-end acceptance. Fixture mode deliberately disables the actual model conversation; do not overlay simulated chat or describe this footage as a live model run.
+
+For an optional separate feature clip, follow [Launch Review](upgrade-demo.md) to show selected browser sources and an approved **fixture** Docs/Sheets/Slides artifact with read-back. It is supplementary footage, not required in this tightly timed core story. Native routine execution remains blocked and is not part of the demo.
+
+## Existing assets and capture gaps
+
+| Asset | Appropriate use | Limit |
+| --- | --- | --- |
+| [Narrow workspace screenshot](../artifacts/screenshots/mission-panel-390.png) | Framing/reference for readable narrow UI | Earlier fixture screenshot; a 390-pixel full-page viewport does not prove native side-panel capture. |
+| [Desktop workspace screenshot](../artifacts/screenshots/mission-desktop.png) | Reference for workspace overview or a supplemental still | Predates the workspace upgrade and OpenRouter setup-copy changes; use fresh footage for the current submission. |
+| [Design concept](design/concept.png) | Design-process material only | Concept artwork is not application evidence or a substitute for the demo. |
+
+No completed demo video is supplied by this document. Fresh capture must establish the native selection gesture, panel close/reopen sequence, current fixture state, and readable approval/read-back details. Native permission dialogs and broader lifecycle races remain separate checks in [the test report](tests.md) and [Launch Review manual checks](upgrade-demo.md#manual-browser-checks). The recorded fixture workflow must not be presented as live Ambiguous, full live Planner/CopilotKit, or native automation acceptance.

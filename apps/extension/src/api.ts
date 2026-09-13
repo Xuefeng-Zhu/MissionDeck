@@ -1,4 +1,4 @@
-export const BACKEND='http://127.0.0.1:4318';
+export const BACKEND=import.meta.env.VITE_MISSIONDECK_BACKEND || 'http://127.0.0.1:4318';
 const sessionKey='mission-control.session';
 export const isExtension=typeof chrome!=='undefined' && !!chrome.runtime?.id;
 export async function readSession():Promise<string|null> {

@@ -4,3 +4,4 @@ export * from './planning.js';
 export * from './fixtures.js';
 export * from './artifacts.js';
 export * from './routines.js';
+export * from './execution.js';
