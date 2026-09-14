@@ -21,7 +21,7 @@ Here's the workflow: while preparing a project for submission, you discover that
 
 Keeping the source page beside the plan makes it easier to check why a change is being proposed. Evidence and approvals stay attached to the mission when you return. Completion is checked against the required outcomes, so a finished task list doesn't hide a missing deliverable.
 
-The implementation combines CopilotKit's interactive UI, OpenRouter model support, and Ambiguous workspace adapters, with Codex assisting development. The current demo uses simulated planning and workspace services; full live integration testing is next.
+The implementation combines CopilotKit's interactive UI, Amazon Bedrock with GPT-5.6 Luna as the default model provider, optional OpenRouter support, and Ambiguous workspace adapters, with Codex assisting development. The current demo uses simulated planning and workspace services; full live integration testing is next.
 
 Code and local setup: https://github.com/Xuefeng-Zhu/MissionDeck
 

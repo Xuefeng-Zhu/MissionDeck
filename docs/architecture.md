@@ -6,7 +6,7 @@ The [mission execution product requirement](mission-execution.md) defines the ta
 
 `execution-router.ts` accepts an authenticated mission start with explicit selected human/agent identities and task/run limits. `execution-service.ts` records the mission authority and a request hash atomically; a repeated start request returns the same mission. A server worker acquires a durable per-mission lease, generates and validates the task graph, writes native assignments/dependencies, and saves a shared mission brief before dispatching eligible work.
 
-`execution-runner.ts` makes bounded, structured model calls for drafting or synthesis from the supplied context and saved dependency documents. It has no tools, network browser, shell, or provider mutation capability. Unsupported work is assigned to humans or reported blocked. The selected Ambiguous agent identity owns the native task; execution is performed by MissionDeck's server worker, not a native external agent process.
+`execution-runner.ts` makes bounded, structured model calls for drafting or synthesis from the supplied context and saved dependency documents. Amazon Bedrock is the default model provider, using GPT-5.6 Luna through the `us.openai.gpt-5.6-luna` inference profile in `us-west-2` and the standard AWS credential chain. OpenRouter and direct OpenAI remain explicit opt-in alternatives. The runner has no tools, network browser, shell, or provider mutation capability. Unsupported work is assigned to humans or reported blocked. The selected Ambiguous agent identity owns the native task; execution is performed by MissionDeck's server worker, not a native external agent process.
 
 The optional **Adaptive launch review** template persists `engine: strands` and uses `strands-execution-runner.ts` behind that same interface. Its analysis Graph extracts evidence, joins concurrent readiness/risk agents, and synthesizes a cited decision brief. Source and dependency read tools are bound to reviewed revisions; model/tool budgets and separate activity records are durable. MissionDeck saves the human decision before starting a fresh launch-pack invocation. Source changes retain historical documents and task IDs, invalidate the prior decision and verification, and repeat the three stages. Older missions default to the direct runner. See the [adaptive architecture diagram, limits, and demo](adaptive-launch.md).
 
@@ -29,7 +29,10 @@ flowchart LR
   Page[Current page or selection] -->|Explicit capture gesture| Extension[Chrome side panel]
   Extension -->|Reviewed excerpt or paired action| API[Authenticated local API]
   Extension <-->|Approved mission context and cards| Copilot[CopilotKit runtime]
-  Copilot --> OpenAI[OpenAI]
+  Copilot --> Model{Selected model provider}
+  Model --> Bedrock[Amazon Bedrock and GPT-5.6 Luna]
+  Model -. Explicit opt-in .-> OpenRouter[OpenRouter]
+  Model -. Explicit opt-in .-> OpenAI[Direct OpenAI]
   API --> Domain[Deterministic domain rules]
   API <--> DB[(PostgreSQL mission state)]
   API -->|Approved operation outbox| Adapter[WorkProvider]

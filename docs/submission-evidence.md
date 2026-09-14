@@ -16,28 +16,23 @@ This page records what each MissionDeck proof artifact establishes. It deliberat
 
 ## Final rebuild verification
 
-The final rebuild candidate was verified on September 14, 2026:
+The Bedrock/Luna rebuild candidate was verified on September 14, 2026:
 
-- 390 tests across 36 files passed, including the PR-review regressions for bounded dispatch, URL handling, and hardened CLI session reuse;
+- 403 tests across 39 files passed, including the Bedrock transport, Luna model-adapter, bounded dispatch, URL handling, and hardened CLI session-reuse regressions;
 - full-repository TypeScript and the production extension/server build passed;
-- both public-demo and private-hosted web bundles passed, with the public JavaScript bundle at 431.61 kB (128.17 kB gzip);
-- the public-demo Docker image built successfully and `render.yaml` parsed successfully;
-- 6/6 adaptive browser scenarios passed, including the actual headful Chrome side panel;
-- the separate persisted execution scenario passed in Chromium on an isolated local port;
+- the exact working-tree Docker image built successfully, then returned `200` from `/health` in an isolated fixture/PGlite smoke test;
+- `render.yaml` passed Render's published Blueprint schema validation;
+- the earlier rebuild's 6/6 adaptive browser scenarios and separate persisted execution scenario remain useful controlled/fixture evidence, but have not yet been rerun on the final public commit;
 - the real Strands SDK was exercised with a controlled model transport; and
-- the browser runs used a controlled runner and fixture workspace.
+- no live Bedrock request or public Render workflow is claimed by these checks.
 
 The initial sandboxed unit run could not bind localhost (`listen EPERM`); the same suite passed outside that socket restriction. The first execution smoke also found an unrelated existing developer server on its default port, so the final passing run used the documented isolated-port override without stopping that process.
 
 ```sh
 corepack pnpm typecheck
-corepack pnpm test
+npm test
 corepack pnpm build
-corepack pnpm --filter @mission/extension build:web
-VITE_PUBLIC_DEMO_BUILD=true corepack pnpm --filter @mission/extension build:web
-docker build -t missiondeck-agents-demo:verify .
-corepack pnpm test:adaptive
-MISSIONDECK_EXECUTION_TEST_PORT=5187 corepack pnpm test:execution
+docker build -t missiondeck:bedrock-render-smoke .
 git diff --check
 ```
 
@@ -47,13 +42,13 @@ Complete this table on the exact public submission commit.
 
 | Evidence | Required record | Status |
 | --- | --- | --- |
-| Public source | Default-branch commit SHA, public URL, MIT license detected | Review branch and MIT file ready; default-branch merge and GitHub detection TODO |
-| Unit/integration | Command, test count, timestamp, exit 0 | Ready locally: 390/390 across 36 files on September 14, 2026 |
-| Production build | Command, timestamp, exit 0, warnings summarized | Ready locally: typecheck, extension/server, both hosted modes, Docker image, and Render YAML passed; private Copilot bundle retains existing large-chunk warnings |
-| Browser | Scenario count, surfaces, viewport(s), timestamp | Ready on controlled/fixture layers: 6/6 adaptive plus 1/1 persisted execution; 1440×1000 workspace and native Chrome side panel on September 14, 2026 |
+| Public source | Default-branch commit SHA, public URL, MIT license detected | Review branch and public MIT file ready; default-branch merge TODO |
+| Unit/integration | Command, test count, timestamp, exit 0 | Ready locally: 403/403 across 39 files on September 14, 2026 |
+| Production build | Command, timestamp, exit 0, warnings summarized | Ready locally: typecheck, extension/server build, exact working-tree Docker image, fixture `/health`, and Render YAML passed; the private Copilot bundle retains existing large-chunk warnings |
+| Browser | Scenario count, surfaces, viewport(s), timestamp | Earlier controlled/fixture evidence: 6/6 adaptive plus 1/1 persisted execution at 1440×1000 and in the native Chrome side panel; rerun on the final public commit TODO |
 | Real model | Vendor, model, timestamp, mission/run IDs, source revision, bounded counters | TODO or explicitly omit claim |
 | Live workspace | Actual task/document IDs, assignees, restricted sharing, content read-back timestamps | TODO or explicitly omit claim |
-| Public demo | URL, `/health` result, cold-start check, one complete judge flow | Container ready locally; public URL and deployed judge flow TODO or leave optional field blank |
+| Public demo | URL, `/health` result, cold-start check, one complete judge flow | Exact image and fixture `/health` ready locally; public URL, live Bedrock call, and deployed judge flow TODO or leave optional field blank |
 | Video | Public URL, runtime ≤ 5:00, playback checked signed out | TODO |
 | Architecture | `docs/architecture.png`, readable at upload preview size | Ready locally; upload TODO |
 

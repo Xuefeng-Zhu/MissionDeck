@@ -22,7 +22,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-The supplied environment selects `PROVIDER_MODE=fixture`, `MODEL_MODE=fixture`, `MODEL_PROVIDER=openrouter`, and `DATABASE_MODE=pglite`. The model-provider choice is inactive until model mode is explicitly changed to live. Fixture suggestions and provider responses are labeled in the app; mission records and approvals are persisted locally. No sponsor account is needed for this mode. Live model/provider errors never switch these settings automatically.
+The supplied environment selects `PROVIDER_MODE=fixture`, `MODEL_MODE=fixture`, `MODEL_PROVIDER=bedrock`, and `DATABASE_MODE=pglite`. It also names the inactive Bedrock default, `us.openai.gpt-5.6-luna` in `us-west-2`; no AWS request occurs until model mode is explicitly changed to live. Fixture suggestions and provider responses are labeled in the app; mission records and approvals are persisted locally. No sponsor account is needed for fixture mode. Live model/provider errors never switch these settings automatically.
 
 The copy command preserves an existing `.env`; review its mode flags before starting an existing setup.
 
@@ -69,20 +69,20 @@ The initial migration is `apps/server/migrations/001_initial.sql`. Startup also 
 
 ## Enable live integrations
 
-Use [integration verification](integrations.md) for exact capabilities and the pending acceptance sequence. Keep credentials in the root `.env`, never in `VITE_*`, source files, screenshots, chat, or extension storage.
+Use [integration verification](integrations.md) for exact capabilities and the pending acceptance sequence. Keep credentials in server-only environment configuration or the standard AWS credential chain, never in `VITE_*`, source files, screenshots, chat, or extension storage.
 
 - For Ambiguous, set `AMBIGUOUS_API_KEY` and `PROVIDER_MODE=live`. Read the connected identity, verify it belongs to your intended test workspace, then set `AMBIGUOUS_EXPECTED_USER_ID` and `AMBIGUOUS_EXPECTED_WORKSPACE_ID` and restart.
 - Begin with the integration smoke proposal, containing exactly one task. Approve its create, verify its returned ID by read-back, approve a supported update, and verify that update. Full-plan live creation remains gated until that path succeeds.
-- For OpenRouter, set `MODEL_MODE=live`, `MODEL_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and `OPENROUTER_MODEL` in the server environment. The default model is `openai/gpt-5.6-luna`; choose a model that supports both tools and structured outputs and is available to your account. Restart, open the CopilotKit conversation, and verify a streamed response and a persisted proposal. Runtime discovery is not proof of model access.
-- Direct OpenAI is optional: select `MODEL_PROVIDER=openai` and configure `OPENAI_API_KEY` plus `OPENAI_MODEL` (default `gpt-5-mini`). Only the selected vendor's credential is used. Missing credentials or errors never fall back to another vendor.
-- Model access and task writes are independent. Keep `PROVIDER_MODE=fixture` while testing a live OpenRouter or OpenAI conversation; use the separate Ambiguous smoke workflow before enabling real task writes.
+- Amazon Bedrock is the default live model provider. Set `MODEL_MODE=live`, keep `MODEL_PROVIDER=bedrock`, `AWS_REGION=us-west-2`, and `BEDROCK_MODEL_ID=us.openai.gpt-5.6-luna`, and make AWS credentials available through the standard SDK credential chain. Locally that can be a reviewed shared AWS profile or server-only environment credentials; on AWS, prefer an attached least-privileged IAM role. The principal needs only the Bedrock invocation permissions used by the selected inference profile and account project. Do not put AWS credentials in `.env.example` or any `VITE_*` variable. Restart, open the CopilotKit conversation, and verify a streamed response and a persisted proposal. Configuration or runtime discovery is not proof of model access.
+- OpenRouter remains optional: select `MODEL_PROVIDER=openrouter` and configure `OPENROUTER_API_KEY` plus `OPENROUTER_MODEL` (default `openai/gpt-5.6-luna`). Direct OpenAI is also optional: select `MODEL_PROVIDER=openai` and configure `OPENAI_API_KEY` plus `OPENAI_MODEL` (default `gpt-5-mini`). Only the selected vendor and its authentication path are used. Missing credentials or errors never fall back to another vendor.
+- Model access and task writes are independent. Keep `PROVIDER_MODE=fixture` while testing live Bedrock, OpenRouter, or OpenAI model work; use the separate Ambiguous smoke workflow before enabling real task writes.
 - Trigger.dev and Exa remain disabled until the core live acceptance checks pass. Their missing keys do not block the fixture demo.
 
 Do not create a replacement workspace to resolve a provider 401 or 403. Correct the intended workspace's credential or permissions. An `outcome_unknown` write requires inspection/reconciliation, not a blind create retry.
 
 ## Adaptive launch review
 
-The Strands template requires the selected live model to support tools and structured output. Keep the existing explicit OpenRouter or direct OpenAI configuration. Workspace mode remains independent: real-model rehearsal can use fixture records, while connected acceptance requires live Ambiguous tasks and documents. The generic fixture mission flow remains available.
+The Strands template requires the selected live model to support tools and the configured structured-result mechanism. The default Bedrock configuration uses GPT-5.6 Luna through the US inference profile and Strands' bounded tool-based structured-output path; OpenRouter and direct OpenAI remain explicit alternatives. Workspace mode remains independent: real-model rehearsal can use fixture records, while connected acceptance requires live Ambiguous tasks and documents. The generic fixture mission flow remains available.
 
 Follow the [adaptive launch guide](adaptive-launch.md) for reviewed source snapshots, versioned human decisions, budget limits, and recovery. Its CLI uses an already running dedicated loopback backend, defaults to previewing exact mutation payloads, and requires `--execute` before dispatch. The default CLI backend port is **4332**; set `MISSIONDECK_BASE_URL` to the dedicated server you actually started. Give the CLI the pairing code through `MISSIONDECK_PAIRING_CODE`, or set `MISSIONDECK_DATA_DIR` explicitly to that server's data directory. It never searches for credentials or changes provider/model settings.
 
@@ -101,7 +101,7 @@ pnpm build
 pnpm test:browser
 ```
 
-See [the test report](tests.md) for checks actually run and manual extension checks still outstanding. Use `pnpm exec playwright install chromium` if the test browser is missing. Fixture tests do not prove live Ambiguous/OpenRouter/OpenAI access, and full-page tests do not alone prove native toolbar, side-panel, or temporary permission behavior.
+See [the test report](tests.md) for checks actually run and manual extension checks still outstanding. Use `pnpm exec playwright install chromium` if the test browser is missing. Fixture tests do not prove live Ambiguous, Bedrock, OpenRouter, or OpenAI access, and full-page tests do not alone prove native toolbar, side-panel, or temporary permission behavior.
 
 Domain tests and exported demo factories use the fixed `DEMO_NOW` clock. The running application uses the real clock for expiring approvals and derives illustrative demo deadlines from the current time. Relative human dates must be confirmed as exact dates in the displayed timezone; the date input is interpreted in that displayed IANA timezone.
 

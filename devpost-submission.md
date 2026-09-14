@@ -39,7 +39,7 @@ MissionDeck uses the Strands Agents SDK for a non-trivial, bounded multi-agent w
 - A **synthesis agent** waits for both branches and creates the decision brief with options, consequences, and a recommendation.
 - After the human gate, a fresh **launch-pack agent** receives the saved decision and produces artifacts that must reflect its constraints.
 
-The model cannot write provider records directly. MissionDeck validates structured outputs and literal source citations; the durable coordinator owns state changes, idempotency, budgets, external writes, read-back, and recovery.
+The default model transport is Amazon Bedrock Converse with GPT-5.6 Luna through the US inference profile `us.openai.gpt-5.6-luna` in `us-west-2`. AWS authentication uses the standard credential chain, preferably a least-privileged runtime IAM role. OpenRouter and direct OpenAI remain explicit opt-in alternatives. The model cannot write provider records directly. MissionDeck validates structured outputs and literal source citations; the durable coordinator owns state changes, idempotency, budgets, external writes, read-back, and recovery.
 
 ## How We Used Codex
 
@@ -87,7 +87,7 @@ corepack pnpm test:adaptive
 
 The adaptive suite includes a headful Chrome side-panel check and therefore requires a graphical desktop session.
 
-For manual Strands output, configure a supported live model in `.env`, keep `PROVIDER_MODE=fixture` for clearly labeled local records, run `corepack pnpm dev`, pair the browser, choose **Run the Harbor review**, inspect the source packet, and select **Start launch review**.
+For manual Strands output, set `MODEL_MODE=live` and use the default Bedrock configuration (`MODEL_PROVIDER=bedrock`, `AWS_REGION=us-west-2`, `BEDROCK_MODEL_ID=us.openai.gpt-5.6-luna`) with AWS authentication available through the standard credential chain. Keep `PROVIDER_MODE=fixture` for clearly labeled local records, run `corepack pnpm dev`, pair the browser, choose **Run the Harbor review**, inspect the source packet, and select **Start launch review**.
 
 Detailed evidence boundaries and optional connected steps are in [`docs/submission-evidence.md`](docs/submission-evidence.md) and [`docs/adaptive-launch.md`](docs/adaptive-launch.md).
 
@@ -99,13 +99,13 @@ Detailed evidence boundaries and optional connected steps are in [`docs/submissi
 
 https://github.com/Xuefeng-Zhu/MissionDeck
 
-Before final submission, verify that the submission branch is on the public default branch and that GitHub detects the MIT license in the repository About panel.
+The repository is public and includes an MIT license. Before final submission, verify that the exact submission build is on the public default branch.
 
 ## Demo Video
 
-**TODO before final submission:** upload the final, publicly playable video to YouTube or Vimeo and add its URL here.
+**TODO before final submission:** record a current MissionDeck/Bedrock demo, upload it to YouTube or Vimeo, confirm signed-out playback, and add its URL here.
 
-Candidate local master: `artifacts/demo-video/missiondeck-live-strands-full-demo-final-2026-09-14.mp4` (generated evidence is intentionally gitignored). Verify the final cut is at most five minutes, has readable labels, and accurately names the model/workspace evidence layer shown.
+Do not publish the earlier local `Mission Control` recording: it has no audio and its retained run manifest identifies OpenRouter rather than Bedrock. Generated evidence is intentionally gitignored. The replacement must be at most five minutes, keep labels readable, and accurately name every model/workspace evidence layer shown.
 
 Suggested outline:
 
@@ -129,12 +129,11 @@ Do not show pairing codes, tokens, `.env` contents, private provider data, or un
 
 ## Submission Readiness Notes
 
-Current local packet includes the MIT license, README, editable architecture SVG, upload-ready architecture PNG, Devpost copy, evidence matrix, and final checklist.
+Current local packet includes the MIT license, README, editable architecture SVG, upload-ready architecture PNG, Devpost copy, evidence matrix, and final checklist. An existing Devpost pre-draft is still untitled and has not been submitted.
 
 Still required before the final Devpost action:
 
 - publish/merge the submission build to the public repository's default branch;
-- verify GitHub recognizes the MIT license;
 - upload the architecture PNG in the required file field;
 - add the AWS Builder ID;
 - publish the final video on YouTube or Vimeo and confirm public playback;
@@ -161,7 +160,7 @@ MissionDeck builds on mission planning, browser context, and durable human/agent
 
 Live requirements fetched from Devpost on 2026-09-14:
 
-- **Submitter Type:** TODO — user must choose Individual, Team of Individuals, or Organization.
+- **Submitter Type:** proposed **Team of Individuals** based on the owner-confirmed Xuefeng Zhu/Lingyi Kong team; confirm before the Devpost update.
 - **Country of Residence:** United States — confirm in the final form.
 - **Organization name:** Leave blank unless applicable.
 - **Track:** Professional Agents.
@@ -170,7 +169,7 @@ Live requirements fetched from Devpost on 2026-09-14:
 - **AWS Builder ID:** TODO — user-controlled value.
 - **Live demo URL:** TODO if a deployment is verified; optional.
 - **Testing instructions:** use the draft above, adjusted to match the final public build.
-- **Optional builder.aws.com post:** TODO or leave blank.
+- **Optional builder.aws.com post:** leave blank unless a published post is available before the deadline.
 - **Video URL:** TODO — public YouTube or Vimeo URL required.
 
 The current official form does not ask for a Codex session ID.

@@ -30,6 +30,22 @@ function mockTransport(reply:()=>Response=()=>Response.json(chatResponse())) {
 afterEach(()=>vi.unstubAllEnvs());
 
 describe('explicit model provider configuration',()=>{
+  it('selects Bedrock Luna with the AWS credential chain and exposes no credential fields',()=>{
+    const resolved=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock',AWS_REGION:'us-west-2',BEDROCK_MODEL_ID:'us.openai.gpt-5.6-luna'}));
+    expect(resolved).toMatchObject({provider:'bedrock',model:'us.openai.gpt-5.6-luna',region:'us-west-2',label:'Amazon Bedrock',authKind:'aws',enabled:true});
+    expect(resolved.apiKey).toBeUndefined();
+    expect(resolved.apiKeyEnv).toBeUndefined();
+    expect(resolved.baseURL).toBeUndefined();
+    expect(createModelClient(resolved)).toBeNull();
+    expect(modelStatus(resolved)).toEqual({modelProvider:'bedrock',modelName:'us.openai.gpt-5.6-luna',modelEnabled:true,setupRequired:[]});
+    expect(JSON.stringify(modelStatus(resolved))).not.toMatch(/credential|access.?key|secret/i);
+  });
+
+  it('honors the standard AWS default-region variable before the Luna region default',()=>{
+    const resolved=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock',AWS_REGION:undefined,AWS_DEFAULT_REGION:'us-east-1'}));
+    expect(resolved.region).toBe('us-east-1');
+  });
+
   it('selects OpenRouter separately from the direct OpenAI key and exposes only safe status',()=>{
     const resolved=resolveModelConfig(environment());
     expect(resolved).toMatchObject({provider:'openrouter',model:'openai/gpt-5.6-luna',baseURL:'https://openrouter.ai/api/v1',label:'OpenRouter',apiKeyEnv:'OPENROUTER_API_KEY',enabled:true});
@@ -63,6 +79,28 @@ describe('explicit model provider configuration',()=>{
 });
 
 describe('mocked structured Planner transport',()=>{
+  it('routes Bedrock planning through the bounded Strands structured-output adapter',async()=>{
+    const selected=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock',AWS_REGION:'us-west-2',BEDROCK_MODEL_ID:'us.openai.gpt-5.6-luna'}));
+    const invoker=vi.fn(async(_selected,request)=>{
+      expect(_selected).toBe(selected);
+      expect(request).toMatchObject({name:'requirement_assessment',maxTokens:6000});
+      expect(request.systemPrompt).toContain('planning assistant');
+      expect(request.prompt).toContain('untrusted source material');
+      return assessment;
+    });
+    await expect(new Planner(selected,undefined,invoker).assessEvidence(createDemoMission(),evidence(),DEMO_NOW)).resolves.toBeNull();
+    expect(invoker).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when Bedrock does not return a valid structured result',async()=>{
+    const selected=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock'}));
+    const invoker=vi.fn(async()=>{throw new Error('synthetic-private-bedrock-detail');});
+    const failure=await new Planner(selected,undefined,invoker).assessEvidence(createDemoMission(),evidence(),DEMO_NOW).catch(error=>error);
+    expect(failure).toMatchObject({status:502,code:'model_failed',message:expect.stringContaining('Amazon Bedrock')});
+    expect(failure.message).not.toContain('synthetic-private-bedrock-detail');
+    expect(invoker).toHaveBeenCalledTimes(1);
+  });
+
   it('uses only OpenRouter chat-completions, the configured model, and its bearer key with strict JSON schema',async()=>{
     vi.stubEnv('OPENAI_BASE_URL','https://unexpected-endpoint.invalid/v1');
     vi.stubEnv('OPENAI_ORG_ID','synthetic-unrelated-openai-org');

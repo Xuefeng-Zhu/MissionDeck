@@ -19,15 +19,16 @@ Unsent captures remain in extension session storage and UI memory for a short ex
 | Application database | Mission contract, tasks, dependencies, estimates, accepted excerpts/source URLs, approvals, events, and provider mappings | Local mode uses the operator's PGlite data directory; hosted mode uses PostgreSQL |
 | Local fixture provider store | Simulated task title, description, status, IDs, and operation deduplication | Explicit `PROVIDER_MODE=fixture` |
 | Ambiguous | Approved task title, description, and supported status | Explicit live mode, verified workspace identity, exact proposal approval |
+| Amazon Bedrock (default live model provider) | Minimal active mission context and accepted evidence needed for planning/assessment; CopilotKit conversation/tool context | Explicit `MODEL_MODE=live`, `MODEL_PROVIDER=bedrock`, configured region/model, and standard AWS credential-chain access |
 | OpenRouter and its selected upstream model provider | Minimal active mission context and accepted evidence needed for planning/assessment; CopilotKit conversation/tool context | Explicit `MODEL_MODE=live`, `MODEL_PROVIDER=openrouter`, and server credential |
 | Direct OpenAI | The same bounded planning/assessment and CopilotKit context | Explicit `MODEL_MODE=live`, `MODEL_PROVIDER=openai`, and server credential |
 | Trigger.dev / Exa | None in this build | Phase two is disabled |
 
 CopilotKit provides the contextual interaction and controlled React cards. The backend remains authoritative. This build does not configure managed CopilotKit Intelligence persistence or send it a separate project credential. CopilotKit runtime telemetry is disabled by default with `COPILOTKIT_TELEMETRY_DISABLED=true`. Sponsor credentials stay on the server and are not bundled into the extension.
 
-Live model traffic originates on the application server. OpenRouter routes requests to the selected model provider; direct OpenAI requests go to OpenAI. Credentials remain server-side, and only the explicitly selected vendor is used. No OpenRouter or OpenAI host permission is added to the extension.
+Live model traffic originates on the application server. Amazon Bedrock is the default and receives requests through its Converse APIs in the configured AWS region; authentication comes from the standard AWS credential chain, preferably an attached least-privileged IAM role on AWS. OpenRouter routes requests to its selected upstream model provider, while direct OpenAI requests go to OpenAI. Credentials remain server-side, and only the explicitly selected vendor is used. No Bedrock, OpenRouter, or OpenAI host permission is added to the extension.
 
-Structured proposal requests and CopilotKit model requests specify `store:false`. This request field does not establish a retention guarantee across OpenRouter or its upstream providers. Processing and retention remain governed by the selected vendor, upstream provider, and account settings; the application does not claim zero retention by external vendors.
+OpenRouter and direct OpenAI requests specify `store:false` where their APIs support it. That field does not establish a retention guarantee across OpenRouter or its upstream providers. Bedrock requests use the Converse contract rather than an OpenAI `store` field. Processing, optional model-invocation logging, and retention remain governed by the selected vendor, AWS account settings, upstream provider, and applicable service terms; the application does not claim zero retention by external vendors.
 
 ## Retention and controls
 

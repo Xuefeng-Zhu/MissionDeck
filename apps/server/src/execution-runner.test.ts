@@ -102,6 +102,28 @@ describe('fixture execution runner', () => {
 });
 
 describe('bounded live execution transport', () => {
+  it('routes Bedrock execution through the structured Strands adapter and validates the result', async () => {
+    const selected = resolveModelConfig(environment({ MODEL_PROVIDER: 'bedrock', AWS_REGION: 'us-west-2', BEDROCK_MODEL_ID: 'us.openai.gpt-5.6-luna' }));
+    const invoker = vi.fn(async (_selected, request) => {
+      expect(_selected).toBe(selected);
+      expect(request).toMatchObject({ name: 'execution_plan', maxTokens: 5000 });
+      expect(request.systemPrompt).toContain('bounded text drafting runner');
+      return plan();
+    });
+    const runner = new ModelExecutionRunner(selected, undefined, invoker);
+    await expect(runner.plan(planInput)).resolves.toEqual(plan());
+    expect(invoker).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not expose a Bedrock adapter failure or try another provider', async () => {
+    const selected = resolveModelConfig(environment({ MODEL_PROVIDER: 'bedrock' }));
+    const invoker = vi.fn(async () => { throw new Error('synthetic-private-aws-detail'); });
+    const failure = await new ModelExecutionRunner(selected, undefined, invoker).run(taskInput).catch(error => error);
+    expect(failure).toMatchObject({ code: 'execution_model_failed', message: expect.stringContaining('Amazon Bedrock') });
+    expect(failure.message).not.toContain('synthetic-private-aws-detail');
+    expect(invoker).toHaveBeenCalledTimes(1);
+  });
+
   it('plans through only the selected provider using strict schemas and validates the returned graph', async () => {
     const { transport, requests } = mockTransport(() => Response.json(chatResponse(plan())));
     const runner = new ModelExecutionRunner(resolveModelConfig(environment()), transport);

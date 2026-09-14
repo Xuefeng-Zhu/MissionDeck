@@ -10,7 +10,9 @@
     "db:migrate": "tsx src/migrate.ts"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "4.0.176",
     "@ai-sdk/openai": "3.0.112",
+    "@aws-sdk/credential-providers": "3.1131.0",
     "@copilotkit/runtime": "1.70.3",
     "@electric-sql/pglite": "0.3.15",
     "@mission/domain": "workspace:*",

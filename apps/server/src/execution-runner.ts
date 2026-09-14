@@ -4,6 +4,7 @@ import { zodResponseFormat, zodTextFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import { HttpError } from './errors.js';
 import { createModelClient, resolveModelConfig, type ResolvedModelConfig } from './model-provider.js';
+import { invokeBedrockStructured, type BedrockStructuredInvoker } from './bedrock-structured.js';
 import type { AdaptiveSource, AdaptiveAnalysis, AdaptiveDecision, LaunchPack, AdaptiveActivity, AdaptiveResult } from '@mission/domain';
 
 export interface ExecutionPlanTask {
@@ -127,7 +128,7 @@ export class ModelExecutionRunner implements ExecutionRunner {
   readonly mode: 'live' | 'fixture';
   private readonly client: OpenAI | null;
 
-  constructor(private readonly selected: ResolvedModelConfig = resolveModelConfig(), transport?: typeof globalThis.fetch) {
+  constructor(private readonly selected: ResolvedModelConfig = resolveModelConfig(), transport?: typeof globalThis.fetch, private readonly bedrockInvoker: BedrockStructuredInvoker = invokeBedrockStructured) {
     this.mode = selected.mode;
     this.client = createModelClient(selected, transport);
   }
@@ -136,11 +137,16 @@ export class ModelExecutionRunner implements ExecutionRunner {
 
   private async parse<T extends z.ZodType>(schema: T, name: string, prompt: string, data: unknown, maxTokens: number, signal?: AbortSignal): Promise<z.infer<T>> {
     assertNotAborted(signal);
-    if (!this.client) throw new HttpError(503, `The selected ${this.selected.label} model is unavailable. Configure MODEL_MODE=live and ${this.selected.apiKeyEnv} to run agents.`, 'model_unavailable');
+    if (!this.selected.enabled) throw new HttpError(503, `The selected ${this.selected.label} model is unavailable. ${this.selected.setupHint}`, 'model_unavailable');
     try {
       const messages = [{ role: 'system' as const, content: `${EXECUTION_SAFETY_PROMPT}\n${prompt}` }, { role: 'user' as const, content: JSON.stringify(data) }];
       let parsed: unknown;
-      if (this.selected.provider === 'openrouter') {
+      if (this.selected.provider === 'bedrock') {
+        parsed = await this.bedrockInvoker(this.selected, {
+          schema, name, systemPrompt: EXECUTION_SAFETY_PROMPT, prompt, data, maxTokens, signal,
+        });
+      } else if (this.selected.provider === 'openrouter') {
+        if (!this.client) throw new HttpError(503, this.selected.setupHint, 'model_unavailable');
         const result = await this.client.chat.completions.parse({
           model: this.selected.model, messages, response_format: zodResponseFormat(schema, name),
           max_completion_tokens: maxTokens, store: false,
@@ -150,6 +156,7 @@ export class ModelExecutionRunner implements ExecutionRunner {
         if (choice?.message.refusal || choice?.finish_reason !== 'stop') throw new HttpError(422, 'The model refused or did not finish a valid agent response.', 'model_refusal');
         parsed = choice.message.parsed;
       } else {
+        if (!this.client) throw new HttpError(503, this.selected.setupHint, 'model_unavailable');
         const result = await this.client.responses.parse({
           model: this.selected.model, input: messages, text: { format: zodTextFormat(schema, name) },
           max_output_tokens: maxTokens, store: false,

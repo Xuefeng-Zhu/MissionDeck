@@ -209,12 +209,12 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
   app.use('/fixtures',express.static(resolve(repoRoot,'fixtures'),{index:'requirements.html'}));
   if(options?.enableCopilot!==false&&selectedModel.enabled&&!runtime.publicDemoEnabled){
     const {CopilotRuntime,BuiltInAgent,InMemoryAgentRunner}=await import('@copilotkit/runtime/v2');const {createCopilotExpressHandler}=await import('@copilotkit/runtime/v2/express');
-    const runtime=new CopilotRuntime({agents:{default:new BuiltInAgent({model:createRuntimeModel(selectedModel),prompt:SAFETY_PROMPT,maxSteps:1,maxOutputTokens:1800,maxRetries:0,providerOptions:{openai:{store:false}}})},runner:new InMemoryAgentRunner({maxThreads:20,maxRunsPerThread:20,maxBytes:16*1024*1024,onConcurrentRun:'throw'}),openGenerativeUI:false});
+    const runtime=new CopilotRuntime({agents:{default:new BuiltInAgent({model:createRuntimeModel(selectedModel),prompt:SAFETY_PROMPT,maxSteps:1,maxOutputTokens:1800,maxRetries:0,...(selectedModel.provider==='bedrock'?{}:{providerOptions:{openai:{store:false}}})})},runner:new InMemoryAgentRunner({maxThreads:20,maxRunsPerThread:20,maxBytes:16*1024*1024,onConcurrentRun:'throw'}),openGenerativeUI:false});
     const copilotRouter=createCopilotExpressHandler({runtime,basePath:'/api/copilotkit',cors:false,activateChannels:false});
     // Runtime 1.70.3 exports Express 4 Router types; its Node request/response
     // middleware is compatible with our Express 5 host. Keep this adaptation at the mount.
     app.use(copilotRouter as unknown as express.RequestHandler);
-  }else app.use('/api/copilotkit',(_req,res)=>res.status(503).json({error:runtime.publicDemoEnabled?'Free-form model conversation is disabled in the bounded public demo. Use the launch review workflow.':`CopilotKit live conversation requires MODEL_MODE=live and a server-side ${selectedModel.apiKeyEnv}. The fixture workflow is available through explicit review controls.`}));
+  }else app.use('/api/copilotkit',(_req,res)=>res.status(503).json({error:runtime.publicDemoEnabled?'Free-form model conversation is disabled in the bounded public demo. Use the launch review workflow.':`CopilotKit live conversation is unavailable. ${selectedModel.setupHint} The fixture workflow is available through explicit review controls.`}));
   if(runtime.deploymentMode==='hosted'&&options?.serveWeb!==false){
     const webRoot=resolve(repoRoot,'apps/extension/dist-hosted');
     app.use(express.static(webRoot,{index:false,fallthrough:true}));

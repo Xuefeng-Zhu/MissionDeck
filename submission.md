@@ -36,7 +36,7 @@ The browser is central to this interaction: the source, its provenance, and the 
 
 ### Engineering and AI
 
-The application uses React, TypeScript, Vite, and Chrome Manifest V3, with an authenticated Express backend and persistent PGlite/PostgreSQL storage. CopilotKit v2 supplies contextual conversation, frontend tools, and controlled review components. Structured planning and evidence assessment support OpenRouter, with direct OpenAI as an explicit alternative. Model results pass schema and domain validation before they become proposals.
+The application uses React, TypeScript, Vite, and Chrome Manifest V3, with an authenticated Express backend and persistent PGlite/PostgreSQL storage. CopilotKit v2 supplies contextual conversation, frontend tools, and controlled review components. Structured planning and evidence assessment default to Amazon Bedrock with GPT-5.6 Luna; OpenRouter and direct OpenAI remain explicit alternatives. Model results pass schema and domain validation before they become proposals.
 
 The backend records approvals, pending operations, and provider outcomes. Task changes require approval and read-back; ambiguous outcomes remain visible for reconciliation. The workspace upgrade also provides artifact-plan review and versioned routine previews. Codex helped implement and test that upgrade, followed by local review and verification.
 
@@ -62,7 +62,7 @@ The form asks which products were used or particularly helpful; these selections
 
 **Other Products — ready to paste:**
 
-TypeScript, React 19, Chrome Extensions Manifest V3 and Side Panel API, Vite, Node.js, Express 5, Zod, PGlite/PostgreSQL, Vitest, Playwright, GitHub.
+Amazon Bedrock, Strands Agents SDK, AWS SDK for JavaScript, TypeScript, React 19, Chrome Extensions Manifest V3 and Side Panel API, Vite, Node.js, Express 5, Zod, PGlite/PostgreSQL, Vitest, Playwright, GitHub.
 
 ## Team Contributions — confirmed by the owner
 
@@ -70,7 +70,7 @@ The refreshed signed-in form now lists the following two people. Their contribut
 
 | Team member | Confirmed contribution copy |
 | --- | --- |
-| Xuefeng Zhu (Lead) | Responsible for building Mission Control, including the Chrome extension, backend, and integrations with CopilotKit, OpenRouter, and the Ambiguous API, using Codex for development assistance. |
+| Xuefeng Zhu (Lead) | Responsible for building Mission Control, including the Chrome extension, backend, and integrations with CopilotKit, Amazon Bedrock, optional OpenRouter, and the Ambiguous API, using Codex for development assistance. |
 | Lingyi Kong (Member) | Contributed project brainstorming and project management. |
 
 ## Prior Work — confirmation needed

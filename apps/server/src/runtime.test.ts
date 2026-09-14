@@ -100,6 +100,29 @@ describe('installed CopilotKit v2 with Express 5', () => {
 });
 
 describe('runtime model selection', () => {
+  it('uses Bedrock Converse with the Luna inference profile and an injected AWS credential chain', async () => {
+    const selected = resolveModelConfig({
+      ...modelEnvironment, MODEL_PROVIDER: 'bedrock', AWS_REGION: 'us-west-2', BEDROCK_MODEL_ID: 'us.openai.gpt-5.6-luna',
+    });
+    const requests: Request[] = [];
+    const credentialProvider = async () => ({ accessKeyId: 'AKIASYNTHETICTEST', secretAccessKey: 'synthetic-test-secret' });
+    const model = createRuntimeModel(selected, async (input, init) => {
+      requests.push(new Request(input, init));
+      return Response.json({
+        output: { message: { role: 'assistant', content: [{ text: 'Synthetic Bedrock response.' }] } },
+        stopReason: 'end_turn', usage: { inputTokens: 4, outputTokens: 3, totalTokens: 7 }, metrics: { latencyMs: 1 },
+      });
+    }, credentialProvider);
+    const result = await model.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'Synthetic Luna routing test.' }] }] });
+    expect(result.content).toContainEqual({ type: 'text', text: 'Synthetic Bedrock response.' });
+    expect(requests).toHaveLength(1);
+    const request = requests[0]!;
+    expect(request.url).toBe('https://bedrock-runtime.us-west-2.amazonaws.com/model/us.openai.gpt-5.6-luna/converse');
+    expect(request.headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256 /);
+    expect(request.headers.get('authorization')).toContain('AKIASYNTHETICTEST');
+    expect(await request.json()).toMatchObject({ messages: [{ role: 'user', content: [{ text: 'Synthetic Luna routing test.' }] }] });
+  });
+
   it('keeps explicit direct OpenAI on the Responses endpoint', async () => {
     const selected = resolveModelConfig({ ...modelEnvironment, MODEL_PROVIDER: 'openai', OPENAI_API_KEY: 'synthetic-openai-test-credential' });
     const requests: Request[] = [];

@@ -3,7 +3,6 @@ import {
   BeforeToolCallEvent, AfterToolCallEvent, configureLogging, TextBlock, tool, type Tool,
 } from '@strands-agents/sdk';
 import { AgentNode, Graph, Status } from '@strands-agents/sdk/multiagent';
-import { OpenAIModel } from '@strands-agents/sdk/models/openai';
 import { z } from 'zod';
 import {
   adaptiveAnalysisSchema, adaptiveFindingSchema, launchPackSchema, adaptiveSourcesSchema,
@@ -11,6 +10,7 @@ import {
 } from '@mission/domain';
 import { HttpError } from './errors.js';
 import { resolveModelConfig, type ResolvedModelConfig } from './model-provider.js';
+import { createStrandsModel, type StrandsModelFactory } from './strands-model.js';
 import { validateExecutionPlan, type ExecutionRunner, type ExecutionPlanInput, type ExecutionTaskInput, type ExecutionOutput } from './execution-runner.js';
 
 export const STRANDS_LIMITS = { modelTurnsPerAgent: 6, outputTokens: 4096, timeoutMs: 240_000, concurrency: 2 } as const;
@@ -81,7 +81,7 @@ export function renderAdaptiveResult(result: AdaptiveResult): Pick<ExecutionOutp
 export class StrandsExecutionRunner implements ExecutionRunner {
   readonly engine = 'strands' as const;
   readonly mode: 'fixture' | 'live';
-  constructor(private readonly selected: ResolvedModelConfig = resolveModelConfig(), private readonly transport?: typeof globalThis.fetch) {
+  constructor(private readonly selected: ResolvedModelConfig = resolveModelConfig(), private readonly transport?: typeof globalThis.fetch, private readonly modelFactory: StrandsModelFactory = createStrandsModel) {
     this.mode = selected.mode;
   }
   get setupRequired() { return [...this.selected.setupRequired]; }
@@ -97,7 +97,7 @@ export class StrandsExecutionRunner implements ExecutionRunner {
   }
 
   async run(input: ExecutionTaskInput, signal?: AbortSignal): Promise<ExecutionOutput> {
-    if (!this.selected.enabled || !this.selected.apiKey) throw new HttpError(503, 'Strands requires the selected live model provider and its server credential. No fixture fallback is available.', 'model_unavailable');
+    if (!this.selected.enabled) throw new HttpError(503, `Strands requires the selected live model provider. ${this.selected.setupHint} No fixture fallback is available.`, 'model_unavailable');
     if (!input.adaptive) throw new HttpError(422, 'Strands requires an adaptive mission with approved sources.', 'adaptive_required');
     const adaptive = input.adaptive;
     adaptiveSourcesSchema.parse(adaptive.sources.map(({ fingerprint: _fingerprint, documentId: _documentId, ...source }) => source));
@@ -158,16 +158,7 @@ export class StrandsExecutionRunner implements ExecutionRunner {
     const agentEnded = (id: string, outcome: NonNullable<AdaptiveActivity['outcome']>) => adaptive.activity({ agent: id, kind: 'agent_end', outcome,
       summary: outcome === 'succeeded' ? `${id} produced a validated result.` : outcome === 'cancelled' ? `${id} was cancelled; no result was accepted.` : `${id} failed to produce a validated result.` });
     const makeAgent = (id: string, instructions: string, schema: z.ZodType) => {
-      const model = new OpenAIModel({ api: 'chat', apiKey: this.selected.apiKey, modelId: this.selected.model,
-        maxTokens: STRANDS_LIMITS.outputTokens,
-        clientConfig: { baseURL: this.selected.baseURL, maxRetries: 0, timeout: 45_000, organization: null, project: null, ...(this.transport ? { fetch: this.transport } : {}) },
-        // SDK 1.17's chat adapter does not preserve interleaved parallel tool blocks. Graph nodes still run in parallel.
-        // OpenRouter already soft-prefers endpoints that support tools and structured
-        // outputs. Requiring every parameter rejects Strands' combined request for
-        // models whose endpoint metadata omits ancillary OpenAI parameters. Keep
-        // model fallback disabled while allowing OpenRouter's documented soft match.
-        params: { store: false, parallel_tool_calls: false, ...(this.selected.provider === 'openrouter' ? { provider: { allow_fallbacks: false } } : {}) },
-      });
+      const model = this.modelFactory(this.selected, { maxTokens: STRANDS_LIMITS.outputTokens, transport: this.transport });
       const agent = new Agent({ id, model, tools, printer: false, retryStrategy: null, contextManager: false, structuredOutputSchema: schema,
         systemPrompt: `${SAFETY}\nSpecialist: ${id}\n${instructions}\nCurrent source revision: ${adaptive.sourceRevision}. Approved source IDs: ${adaptive.sources.map(s => s.id).join(', ')}.` });
       let calls = 0;

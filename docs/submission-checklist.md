@@ -14,13 +14,13 @@ This checklist is based on the live Agents for Humans Devpost requirements fetch
 - [x] Devpost text draft added at `devpost-submission.md`.
 - [ ] Merge/push the final build to the public default branch.
 - [ ] Verify the public repository includes all source/setup assets needed to run.
-- [ ] Verify GitHub detects **MIT License** in the repository About panel.
+- [x] Verify the public repository exposes the root **MIT License**.
 - [ ] Upload `docs/architecture.png` to the required architecture field.
 - [ ] Add the user-controlled AWS Builder ID.
 
 ## Demo video
 
-- [ ] Select the final local master and verify its claims against the evidence matrix.
+- [ ] Record a fresh final master from the MissionDeck/Bedrock build; do not reuse the silent `Mission Control`/OpenRouter recording.
 - [ ] Keep runtime at or below **5:00**.
 - [ ] Cover the problem, target user, and why the problem matters.
 - [ ] Demonstrate the working project end to end.
@@ -42,7 +42,7 @@ This checklist is based on the live Agents for Humans Devpost requirements fetch
 
 ## Official form answers
 
-- [ ] **Submitter Type:** choose Individual, Team of Individuals, or Organization; do not infer.
+- [ ] **Submitter Type:** confirm **Team of Individuals** for the owner-confirmed Xuefeng Zhu/Lingyi Kong team, or choose the correct alternative.
 - [ ] **Country of Residence:** confirm United States in the final form.
 - [ ] **Organization name:** fill only if applicable.
 - [x] **Track:** Professional Agents.
