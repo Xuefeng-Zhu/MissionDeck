@@ -1,93 +1,179 @@
-# Mission Control
+# MissionDeck
 
-**Humans and AI agents, working toward one mission.**
+**A release-readiness agent for small product teams.**
 
-Mission Control helps small teams tackle ambitious projects by combining agent execution with human judgment. Large projects involve dependent tasks, changing requirements, and decisions that need people. A shared mission connects those pieces so each contributor can build on the work that came before.
+MissionDeck reconciles product requirements, engineering status, and customer feedback; asks a person only for the launch tradeoff that needs human judgment; then produces a cited launch pack that honors that decision.
 
-**Product goal:** State a mission, break it into tasks in **Ambiguous.ai**, and assign each task to a specific human or agent. Start eligible agent work automatically, use human feedback to move the project forward, and keep drafts, evidence, reviews, and final artifacts in Ambiguous, linked to their tasks and mission. See the [mission execution requirements and acceptance scenario](docs/mission-execution.md).
+Built with the [Strands Agents SDK](https://strandsagents.com/) for the **Professional Agents** track of the [Agents for Humans Hackathon](https://agentsforhumans.devpost.com/).
 
-## From mission to shared work
+![MissionDeck architecture: reviewed sources flow through a durable coordinator and a Strands graph to a human Decision Receipt, then a cited launch pack](docs/architecture.svg)
 
-1. **Define the outcome.** Describe the mission, constraints, and what successful completion looks like.
-2. **Break down and assign the work.** Give each task an owner, dependencies, an expected deliverable, and completion criteria. Agents handle supported drafting and synthesis; humans contribute decisions, missing information, and review.
-3. **Coordinate execution and handoffs.** Ready agent tasks start automatically. Completed prerequisites and human feedback release the next steps, carrying the relevant context forward.
-4. **Keep the work together.** Ambiguous is the shared home for tasks and artifacts. Drafts, evidence, and review results stay connected to the mission so contributors can find and reuse them.
-5. **Verify the outcome.** Check the deliverables against the mission's required results, with human verification where needed.
+## The problem
 
-For example, a product-launch mission can move from an agent's positioning draft to a human's review, then to an agent's final launch brief. That handoff is the first implemented flow toward coordinating larger projects across people and agents.
+A launch decision rarely lives in one document. Product copy may promise a feature that engineering has not cleared. Customer feedback may reveal a rollout risk that the checklist missed. Small teams spend hours manually reconciling those sources, and a generic summary still leaves the person responsible for deciding what to do.
 
-The Chrome side panel keeps the mission beside the pages where requirements and feedback appear. Users select and review browser context before sharing it. Mission Control coordinates the work; Ambiguous keeps the shared tasks and outputs accessible beyond a single conversation.
+MissionDeck turns that scattered, judgment-heavy work into one bounded flow:
 
-## Current scope
+1. Review three named source snapshots: requirements, engineering status, and customer feedback.
+2. Let a Strands graph extract cited evidence, run readiness and risk analysis in parallel, and synthesize a decision brief.
+3. Make the one consequential choice. MissionDeck records the selected option and any constraints as a **Decision Receipt** tied to the exact source revision.
+4. Generate a fresh launch pack: launch brief, readiness checklist, announcement draft, unresolved risks, and a summary of what changed because of the decision.
+5. Save and read back the resulting documents, then require a person to verify the outcome.
 
-The current implementation includes a Manifest V3 Chrome side panel and a durable server worker for the first complete execution flow: draft from supplied context, hand off to a human, then produce a final document. Ambiguous holds the assigned tasks, dependencies, and shared documents. The server runs the selected model for the assigned agent; it does not launch a native Codex or Hermes process. This repository is named MissionDeck; the product is Mission Control.
+The included **Harbor launch review** is a fictional, editable scenario. It deliberately contains a conflict between a calendar-integration promise and engineering readiness so the decision flow is visible without using private company data.
 
-The **Adaptive launch review** template adds real Strands agents for evidence extraction, parallel readiness and risk analysis, and a cited human decision brief. A saved decision releases the launch-pack task; changing reviewed sources creates a new revision and requires a fresh decision. Use the [adaptive launch guide and connected demo CLI](docs/adaptive-launch.md) for setup, the architecture, and a repeatable rehearsal. See [adaptive acceptance evidence](docs/adaptive-acceptance.md) for the checks actually completed.
+## Why the Decision Receipt matters
+
+Most AI workflows end with an answer. MissionDeck keeps the chain of responsibility.
+
+Each Decision Receipt records:
+
+- the source revision and analysis version the recommendation was based on;
+- the option chosen by the human reviewer;
+- constraints the launch pack must honor; and
+- the human judgment that gates and supplies the downstream launch documents.
+
+If a reviewed source changes, MissionDeck retains the old artifacts but marks the old analysis, decision, and outcome as outdated. A new analysis and a new human decision are required before a revised launch pack can be produced.
+
+## What works today
+
+- A fixed three-stage workspace workflow: **Analyze → Human decision → Produce launch pack**.
+- A real Strands multi-agent graph with evidence extraction, concurrent readiness and risk specialists, and a synthesis join.
+- Mission-scoped, revision-bound read tools for sources and saved artifacts.
+- Structured result validation, including literal citation checks against reviewed source snapshots.
+- Durable task/run leases, idempotent requests, cumulative model/tool budgets, pause/cancel behavior, and explicit uncertain-write recovery.
+- Journaled document writes with provider read-back instead of assuming a timed-out write failed.
+- Source revisions that preserve historical artifacts and stable task identities while invalidating stale decisions.
+- A Chrome MV3 side panel plus a full-width workspace, with keyboard navigation and narrow-layout coverage.
+- Explicit human verification before the mission can be marked complete.
+
+MissionDeck does **not** browse arbitrary URLs, publish announcements, send messages, or silently convert fixture behavior into live-provider success. The working scope is deliberately bounded to reviewed text sources and launch-readiness artifacts.
+
+## Architecture
+
+MissionDeck separates model work from durable authority:
+
+- The **Strands graph** performs read-only analysis. Readiness and risk run concurrently; synthesis waits for both.
+- The **MissionDeck coordinator** owns task state, source revisions, budgets, decisions, retries, and document delivery.
+- The **human gate** sits between analysis and production. Recording a decision starts a fresh launch-pack invocation.
+- The **workspace adapter** writes only allowlisted tasks/documents and verifies them by reading them back.
+
+See the [submission architecture diagram](docs/architecture.png), the [adaptive launch guide](docs/adaptive-launch.md), and the detailed [architecture notes](docs/architecture.md).
+
+Repository map:
+
+| Path | Responsibility |
+| --- | --- |
+| `apps/extension` | React workspace, Chrome MV3 side panel, reviewed source UI, decision and result views |
+| `apps/server` | Authenticated API, durable coordinator, Strands runner, provider adapter, PostgreSQL migrations |
+| `packages/domain` | Zod contracts, adaptive launch schemas, mission/task rules |
+| `packages/ui` | Shared accessible UI primitives and tokens |
+| `scripts/adaptive-demo.ts` | Preview-first, idempotent operator CLI for a connected rehearsal |
 
 ## Run locally
 
-Requires Node.js 22+ and pnpm 10.32.1.
+Requirements: Node.js 22+ and pnpm 10.32.1.
 
 ```sh
-pnpm install
+corepack pnpm install --frozen-lockfile
 cp -n .env.example .env
-pnpm dev
 ```
 
-Open `http://127.0.0.1:5173`. In a second terminal, run `pnpm pairing-code` and enter the code in Settings. The server listens only on `127.0.0.1:4318`; sessions are revocable and expire after 24 hours.
-
-The default **fixture provider + fixture planner** are explicitly labeled simulations. Mission state is persisted in `.data/postgres` using PGlite, an embedded PostgreSQL engine. No OpenRouter, OpenAI, or Ambiguous call is silently replaced by a fixture response. Standard PostgreSQL is supported with the included Docker Compose configuration.
-
-For live planning and CopilotKit conversation, the default model vendor is **OpenRouter**: configure `MODEL_MODE=live`, `MODEL_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and `OPENROUTER_MODEL` on the server. The default model is `openai/gpt-5.6-luna`. Direct OpenAI remains available with `MODEL_PROVIDER=openai`, `OPENAI_API_KEY`, and `OPENAI_MODEL`. Task provider mode is independent; keep `PROVIDER_MODE=fixture` to test real model responses against simulated tasks. See [setup](docs/setup.md) before enabling live task writes.
-
-## Load the extension
+The copied environment is intentionally all-fixture: it can load the local UI and run deterministic tests without an external call, but it does not enable the adaptive Harbor workflow. To run that workflow interactively, keep `PROVIDER_MODE=fixture`, set `MODEL_MODE=live`, select OpenRouter or OpenAI, and add that provider's server-side key in `.env`. Then start MissionDeck:
 
 ```sh
-pnpm build
+corepack pnpm dev
 ```
 
-Open Chrome's extensions page, enable Developer mode, choose **Load unpacked**, and select `apps/extension/dist`. Click Mission Control's toolbar icon on a web page, pair the extension in Settings, then choose **Capture page**. Selection context menus offer Add to mission, Create task, and Check mission impact. Every capture opens an editable preview before transmission. An extension-owned full workspace is available from the panel header.
-
-## What is implemented
-
-- Mission start with real workspace human/agent selection, dependency-gated drafting runs, human review, and final outcome verification.
-- Native Ambiguous task assignment, dependency edges, restricted documents shared with selected participants, and verified artifact read-back.
-- Durable execution journals, worker leases, run budgets, pause/resume/cancel, reassignment, and uncertain-write reconciliation.
-- Editable mission contracts and exact deadlines, with required and optional criteria.
-- Plan review with editable tasks, dependencies, effort estimates, and explicit approval.
-- A server-authoritative PostgreSQL state model, audit events, operation ledger, and durable outbox.
-- Fixture task create/read/update and a narrow live Ambiguous adapter with identity checks, read-back, conflict detection, and unknown-outcome handling.
-- CopilotKit v2 context, frontend proposal/navigation tools, six controlled review components, human feedback, and authenticated runtime; OpenRouter or direct OpenAI structured plan/evidence generation when configured.
-- Accepted evidence deduplication, missing video requirement demo, blockers, capacity scheduling, recovery diffs, and human verification.
-- Minimum extension permissions, private draft/form exclusions, secret screening, expiring capture inbox, and manual fallback.
-
-Choose **New mission → Try a sample mission → Start mission** for the launch-brief flow. Ready agent tasks run automatically; the human review releases the final drafting task. The first runner supports text drafting and synthesis from supplied material. Browsing, coding, publishing, and sending remain human work; the separate Trigger.dev/Exa research worker is still disabled. The older planning-only workflow retains its explicit proposal reviews.
-
-The complete execution flow is verified with an isolated fixture backend and Chrome. A separate real-model rehearsal completed planning, drafting, human-review handoff, and final synthesis against fixture storage. Live Ambiguous identity/roster discovery is verified; live task/document writes require a connected rehearsal. Workspace and model modes remain visibly labeled. See [the demo operator guide](docs/execution-demo.md) and [execution API evidence](docs/execution-api-discovery.md).
-
-## Documentation and checks
-
-- [Mission execution product requirement](docs/mission-execution.md)
-- [Launch-brief execution demo](docs/execution-demo.md)
-- [Strands adaptive launch guide and demo CLI](docs/adaptive-launch.md)
-- [Adaptive launch acceptance evidence](docs/adaptive-acceptance.md)
-- [Setup and live smoke workflow](docs/setup.md)
-- [Verified integration capabilities and package versions](docs/integrations.md)
-- [Architecture and field ownership](docs/architecture.md)
-- [Privacy, retention, and deletion](docs/privacy.md)
-- [Two-minute demo and manual extension checks](docs/demo.md)
-- [Test report and limitations](docs/tests.md)
-- [Design fidelity review](docs/design-review.md)
+Open `http://127.0.0.1:5173`. In another terminal, generate a pairing code:
 
 ```sh
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm test:browser
+corepack pnpm pairing-code
 ```
 
-The test report distinguishes executed local checks, fixture behavior, unpacked Chromium coverage, remaining manual Chrome checks, and unverified live providers. No extension publication or deployment is performed.
+Enter the code in **Settings**, choose **Run the Harbor review**, inspect or edit the fictional source packet, and select **Start launch review**. To exercise the complete workflow without external model traffic, run `corepack pnpm test:adaptive` instead.
 
-## Workspace/context upgrade
+### Choose the evidence layer deliberately
 
-The incremental upgrade adds selected browser sources, opt-in Live Assist, connected artifact review and consented routine suggestions while preserving the original task workflow. Start with [the Launch Review fixture demo](docs/upgrade-demo.md), [capability/access matrix](docs/ambiguous-capabilities.md), [browser privacy](docs/browser-context-privacy.md), and [native workflow mapping](docs/native-workflow-mapping.md). See [verification results](docs/tests.md#workspace-upgrade-verification) for local coverage and remaining acceptance gaps. `WORKSPACE_UPGRADE_ENABLED=false` disables the added routes and navigation. No native routine activates on startup.
+The model and workspace modes are independent and remain visible in the product.
+
+| Configuration | What it proves |
+| --- | --- |
+| `MODEL_MODE=fixture`, `PROVIDER_MODE=fixture` | Deterministic local orchestration and UI behavior; no model/provider call |
+| `MODEL_MODE=live`, `PROVIDER_MODE=fixture` | Real selected-model/Strands output saved to clearly labeled fixture workspace records |
+| `MODEL_MODE=live`, `PROVIDER_MODE=live` | Intended connected path; requires configured Ambiguous identity plus verified task/document read-back |
+
+Adaptive launch review requires `MODEL_MODE=live` in normal use. Configure either OpenRouter (`MODEL_PROVIDER=openrouter`) or direct OpenAI (`MODEL_PROVIDER=openai`) in `.env`. Credentials remain server-side. Never commit `.env` or paste credentials into issues, screenshots, or demo materials. See [setup](docs/setup.md) for the complete configuration and safety gates.
+
+## Deploy a bounded judge demo
+
+The root [`render.yaml`](render.yaml) and [`Dockerfile`](Dockerfile) define a same-origin hosted build: Express serves the optimized React bundle, PostgreSQL stores isolated anonymous sessions, the workspace adapter remains fixture-only, and Strands uses the selected live model. The hosted bundle is written to `apps/extension/dist-hosted`, separate from the unpacked MV3 extension in `apps/extension/dist`. The Docker image defaults to the bounded public-demo client, which omits unreachable free-form CopilotKit chat code. For a private-hosted image with the complete Copilot client, build with `--build-arg VITE_PUBLIC_DEMO_BUILD=false` and keep `PUBLIC_DEMO_ENABLED=false`.
+
+After the reviewed branch is merged to the public default branch, import the repository as a Render Blueprint and enter `OPENROUTER_API_KEY` directly in Render. Set a hard account/key spending limit with the model provider as the outer kill switch. Do not place the key in Git, Blueprint YAML, screenshots, or logs.
+
+The checked-in defaults permit one mission per four-hour session, two source revisions, 20 model calls per mission, four concurrent starts, three session issuances per IP per hour, and 200 model calls per UTC day across the deployment. General planning, free-form Copilot conversation, evidence upload, external workspace writes, retries, and reassignment are disabled for anonymous sessions.
+
+Verify the deployed revision before sharing its URL:
+
+```sh
+curl -fsS https://YOUR-SERVICE.onrender.com/health
+curl -fsS https://YOUR-SERVICE.onrender.com/api/config
+```
+
+Then complete one clean-browser Harbor review from sources through Decision Receipt and launch pack. A successful local or Docker build is not public-deployment proof. Render's free PostgreSQL instances currently expire after 30 days and have no backups; review [Render's free-instance limits](https://render.com/docs/free) before relying on the demo during judging.
+
+## Load the Chrome side panel
+
+```sh
+corepack pnpm build
+```
+
+Open Chrome's extensions page, enable Developer mode, choose **Load unpacked**, and select `apps/extension/dist`. The full workspace remains available at `http://127.0.0.1:5173`; the extension adds the mission beside the pages where requirements and feedback appear.
+
+## Verify the build
+
+```sh
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+corepack pnpm exec playwright install chromium
+corepack pnpm test:adaptive
+MISSIONDECK_EXECUTION_TEST_PORT=5177 corepack pnpm test:execution
+```
+
+The adaptive suite includes an actual headful Chrome side-panel check, so run it from a graphical desktop session. The documentation and tests distinguish the real SDK with a controlled model transport, fixture workspace behavior, browser rendering, real-model rehearsal, and connected provider acceptance. A green local suite is not presented as proof of a public deployment or live Ambiguous delivery. See [submission evidence](docs/submission-evidence.md) for the current proof matrix and [adaptive acceptance evidence](docs/adaptive-acceptance.md) for detailed historical runs.
+
+## Trust boundaries
+
+- Sources are reviewed snapshots, not instructions. Text inside a source cannot authorize tools, writes, new participants, or external browsing.
+- Strands tools are read-only and scoped to the current mission/revision.
+- Human approval is explicit and version-bound; a chat comment or provider task status cannot substitute for it.
+- Model and provider errors remain errors. There is no silent fixture fallback.
+- Fixture records, controlled transports, real model calls, and live workspace writes are labeled separately.
+- Pairing codes, session tokens, model keys, and provider keys are excluded from logs and repository evidence.
+
+Read [privacy](docs/privacy.md) and [adaptive launch boundaries](docs/adaptive-launch.md) before enabling live modes.
+
+## Submission materials
+
+- [Devpost draft](devpost-submission.md)
+- [Architecture diagram (PNG)](docs/architecture.png) and [editable SVG](docs/architecture.svg)
+- [Submission checklist](docs/submission-checklist.md)
+- [Evidence matrix](docs/submission-evidence.md)
+- [Demo operator guide](docs/adaptive-launch.md#repeatable-demonstration)
+
+### Prior-work disclosure
+
+MissionDeck builds on a mission-planning and durable human/agent coordination foundation created before this Agents for Humans submission period. The hackathon-specific work adds the adaptive launch-review product direction, Strands multi-agent graph, revision-bound source tools and citations, Decision Receipt, source-change invalidation, launch-pack generation, execution graph, adaptive browser/native-side-panel coverage, and submission experience. Git history is retained so judges can inspect that evolution.
+
+## Known limitations
+
+- The implemented agent is intentionally specialized for launch readiness; arbitrary mission planning with dynamic Strands graphs is future work.
+- Public hosted-demo availability and connected Ambiguous task/document delivery must be evaluated separately from local tests.
+- The launch announcement is a draft. MissionDeck never publishes or sends it automatically.
+- PGlite is appropriate for local persistent demos; a hosted deployment should use standard PostgreSQL.
+- Native Chrome permission and lifecycle behaviors still require manual checks beyond browser automation.
+
+## License
+
+[MIT](LICENSE) © 2026 Xuefeng Zhu.

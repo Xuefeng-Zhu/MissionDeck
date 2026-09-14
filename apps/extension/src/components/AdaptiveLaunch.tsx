@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import type {AdaptiveSourceInput,AdaptiveState,Evidence,Mission,MissionExecution,SourceCitation} from '@mission/domain';
 import {Badge,Button,Field,Notice} from '@mission/ui';
 import {CheckCircle2,ExternalLink,FileText,GitBranch,Plus,RefreshCw,Trash2} from 'lucide-react';
@@ -34,12 +34,14 @@ export function AdaptiveSourceEditor({sources,onChange,disabled=false}:{sources:
 interface AdaptiveLaunchProps{
   execution:MissionExecution;
   busy:boolean;
+  publicDemo?:boolean;
+  maxSourceRevisions?:number;
   onDecision:(body:{requestId:string;expectedRevision:number;analysisVersion:string;optionId:string;constraints:string})=>Promise<void>;
   onSources:(body:{requestId:string;expectedRevision:number;sources:AdaptiveSourceInput[]})=>Promise<void>;
   onReopen:(body:{requestId:string;expectedRevision:number})=>Promise<void>;
 }
 
-export function AdaptiveLaunch({execution,busy,onDecision,onSources,onReopen}:AdaptiveLaunchProps){
+export function AdaptiveLaunch({execution,busy,publicDemo=false,maxSourceRevisions,onDecision,onSources,onReopen}:AdaptiveLaunchProps){
   const adaptive=execution.adaptive;
   const [editing,setEditing]=useState(false);
   const [draftSources,setDraftSources]=useState<AdaptiveSourceInput[]>([]);
@@ -54,29 +56,35 @@ export function AdaptiveLaunch({execution,busy,onDecision,onSources,onReopen}:Ad
   const decision=adaptive.decision?.sourceRevision===adaptive.sourceRevision?adaptive.decision:undefined;
   const canDecide=Boolean(analysis&&!decision&&execution.status==='running'&&execution.tasks.some(task=>task.status==='waiting_human'))&&!writing;
   const staleEdit=editing&&editRevision!==adaptive.revision;
-  return <div className="adaptive-launch">
+  const priorReceiptExpired=adaptive.sourceHistory.length>1&&!decision&&Boolean(adaptive.previousPack);
+  const sourceRevisionLimit=maxSourceRevisions??2;
+  const sourceChangesAvailable=!publicDemo||adaptive.sourceRevision<sourceRevisionLimit;
+  return <div className="adaptive-launch launch-conversation">
     <section className="execution-overview adaptive-source-section" aria-label="Mission sources">
-      <div className="section-heading row-between"><div><div className="execution-eyebrow"><GitBranch size={14}/>Adaptive launch review</div><h2>Sources and changes</h2></div><Badge tone="blue">Source revision {adaptive.sourceRevision}</Badge></div>
-      <p className="small muted">The agents compare these sources, surface a launch decision, then prepare the agreed launch pack. Replacing sources preserves past work and triggers a fresh review of affected outputs.</p>
+      <div className="section-heading row-between"><div><div className="execution-eyebrow"><GitBranch size={14}/>MissionDeck · evidence packet</div><h2>The facts under review</h2></div><Badge tone="blue">Source revision {adaptive.sourceRevision}</Badge></div>
+      <p className="small muted">MissionDeck compares this reviewed packet, cites the exact conflict, and asks for your judgment before writing anything downstream. A source change keeps history but expires conclusions from the earlier revision.</p>
+      {priorReceiptExpired&&<Notice tone="amber"><strong>The previous Decision Receipt is outdated.</strong> Source revision {adaptive.sourceRevision} needs fresh analysis and a new human decision before the launch pack can change.</Notice>}
       {adaptive.sourceHistory.length>1&&<Field label="View source revision"><select value={viewed?.revision??adaptive.sourceRevision} onChange={event=>setSelectedRevision(Number(event.target.value))}>{[...adaptive.sourceHistory].reverse().map(revision=><option key={revision.revision} value={revision.revision}>Revision {revision.revision}{revision.revision===adaptive.sourceRevision?' · current':' · historical'}</option>)}</select></Field>}
       {viewed&&<><p className="small muted">{viewed.changeSummary} · {dateTime(viewed.createdAt)}</p><div className="adaptive-sources">{viewed.sources.map(source=>{
         const url=safeSourceLink(source.sourceUrl);
         return <details className="adaptive-source-detail" key={source.id} id={`source-${viewed.revision}-${source.id}`}><summary><FileText size={14}/><span>{source.title}</span><Badge tone={viewed.revision===adaptive.sourceRevision?'blue':'neutral'}>{viewed.revision===adaptive.sourceRevision?'Current':'Historical'}</Badge></summary><pre className="adaptive-source-content">{source.content}</pre><div className="adaptive-source-metadata"><span>{source.provenance==='browser'?'Reviewed excerpt':'Pasted source'}</span>{url&&<a href={url} target="_blank" rel="noreferrer">Source page <ExternalLink size={11}/></a>}{source.capturedAt&&<span>Captured {dateTime(source.capturedAt)}</span>}{source.documentId&&<span>Saved document: <code>{source.documentId}</code></span>}<span>Fingerprint: <code>{source.fingerprint}</code></span></div></details>;
       })}</div></>}
-      {execution.status==='completed'&&<Notice tone="blue">This mission is complete. Reopen it before updating sources and authorizing another round of work.<div className="actions"><Button variant="secondary" busy={busy} disabled={writing} onClick={()=>void onReopen({requestId:crypto.randomUUID(),expectedRevision:adaptive.revision}).catch(()=>{})}><RefreshCw size={14}/>Reopen mission for changes</Button></div></Notice>}
-      {!closed&&!editing&&<div className="adaptive-edit-action"><Button variant="secondary" disabled={busy||writing} onClick={()=>{setDraftSources(sourceInputs(adaptive));setEditRevision(adaptive.revision);setEditing(true);}}>Update sources</Button>{writing&&<p className="small muted">Sources can be changed after active work and provider writes are settled.</p>}</div>}
+      {execution.status==='completed'&&<Notice tone="blue">{publicDemo?'This demo mission is complete. Reset the demo session from Demo details to run the Harbor review again.':<>This mission is complete. Reopen it before updating sources and authorizing another round of work.<div className="actions"><Button variant="secondary" busy={busy} disabled={writing} onClick={()=>void onReopen({requestId:crypto.randomUUID(),expectedRevision:adaptive.revision}).catch(()=>{})}><RefreshCw size={14}/>Reopen mission for changes</Button></div></>}</Notice>}
+      {!closed&&!editing&&sourceChangesAvailable&&<div className="adaptive-edit-action"><Button variant="secondary" disabled={busy||writing} onClick={()=>{setDraftSources(sourceInputs(adaptive));setEditRevision(adaptive.revision);setEditing(true);}}>Update sources</Button>{writing&&<p className="small muted">Sources can be changed after active work and provider writes are settled.</p>}</div>}
+      {!closed&&!sourceChangesAvailable&&<Notice tone="blue">This public demo has used its {sourceRevisionLimit} source revisions. Review the current Decision Receipt and launch pack, or reset the demo session to start over.</Notice>}
       {editing&&!closed&&<form className="adaptive-source-form" onSubmit={event=>{event.preventDefault();void onSources({requestId:crypto.randomUUID(),expectedRevision:editRevision,sources:draftSources}).then(()=>{setEditing(false);setSelectedRevision(null);}).catch(()=>{});}}>
         <h3>Prepare the next source revision</h3><AdaptiveSourceEditor sources={draftSources} onChange={setDraftSources} disabled={busy||writing}/>
-        <AcceptedBrowserImport missionId={execution.missionId} sources={draftSources} onImport={source=>setDraftSources(items=>[...items,source])} disabled={busy||writing||draftSources.length>=5}/>
-        <p className="small muted">Saving retains a new source revision in Ambiguous and authorizes updated analysis within the mission's remaining work limits. Existing outputs remain in history.</p>
+        {!publicDemo&&<AcceptedBrowserImport missionId={execution.missionId} sources={draftSources} onImport={source=>setDraftSources(items=>[...items,source])} disabled={busy||writing||draftSources.length>=5}/>}
+        <p className="small muted">Saving retains a new source revision in {execution.mode==='fixture'?'the fixture workspace':'Ambiguous'} and authorizes updated analysis within the mission's remaining work limits. Existing outputs remain in history.</p>
         {staleEdit&&<Notice tone="amber">This mission changed while you were editing. Close this editor and reopen it to review the latest sources before saving.</Notice>}
         <div className="execution-actions"><Button type="submit" busy={busy} disabled={writing||staleEdit||!sourcesValid(draftSources)}>Save sources and replan</Button><Button type="button" variant="ghost" disabled={busy} onClick={()=>setEditing(false)}>Close editor</Button></div>
       </form>}
     </section>
-    {analysis?<section className="execution-overview adaptive-analysis" aria-label="Launch analysis"><div className="section-heading row-between"><h2>{decision?'Your launch decision':'A launch decision needs your judgment'}</h2><Badge tone="blue">Based on revision {analysis.sourceRevision}</Badge></div><p>{analysis.value.summary}</p>
+    {analysis?<section className="execution-overview adaptive-analysis decision-receipt" aria-label="Decision Receipt"><div className="section-heading row-between"><div><div className="execution-eyebrow">MissionDeck · human judgment</div><h2>Decision Receipt</h2></div><Badge tone={decision?'green':'amber'}>{decision?'Decision recorded':'Your judgment needed'}</Badge></div><p className="decision-receipt-summary">{analysis.value.summary}</p>
       <div className="adaptive-findings">{analysis.value.findings.map(finding=><article className="adaptive-finding" key={finding.id}><div className="adaptive-finding-heading"><h3>{finding.title}</h3><Badge tone={finding.kind==='conflict'?'amber':finding.kind==='risk'?'red':'blue'}>{finding.kind}</Badge></div><p>{finding.detail}</p><Citations citations={finding.citations} adaptive={adaptive}/></article>)}</div>
       {analysis.value.unresolvedRequirements.length>0&&<div className="adaptive-requirements"><h3>Still unresolved</h3><ul>{analysis.value.unresolvedRequirements.map((requirement,index)=><li key={index}>{requirement}</li>)}</ul></div>}
       {analysis.value.assumptions.length>0&&<details className="adaptive-assumptions"><summary>Assumptions to review ({analysis.value.assumptions.length})</summary><ul>{analysis.value.assumptions.map((assumption,index)=><li key={index}>{assumption}</li>)}</ul></details>}
+      <div className="decision-next"><h3>What happens next</h3><p><strong>Choose the launch boundary. MissionDeck will apply it to every deliverable.</strong> Your selection and constraints are pinned to analysis <code>{analysis.version}</code> and source revision {analysis.sourceRevision}. Production stays locked until the receipt is saved and verified.</p></div>
       <DecisionForm key={analysis.version} adaptive={adaptive} enabled={canDecide} busy={busy} onDecision={onDecision}/>
     </section>:<section className="execution-overview" aria-label="Launch analysis"><h2>Comparing the current sources</h2><p className="small muted">The analysis and decision options for source revision {adaptive.sourceRevision} will appear here after their evidence is verified.</p></section>}
     {adaptive.pack?.sourceRevision===adaptive.sourceRevision&&<section className="execution-overview adaptive-pack" aria-label="Launch pack changes"><div className="section-heading"><CheckCircle2 size={19}/><h2>What changed in the launch pack</h2></div><p>{adaptive.pack.value.changeSummary}</p><Citations citations={adaptive.pack.value.citations} adaptive={adaptive}/>{adaptive.pack.value.unresolvedRisks.length>0&&<><h3>Risks retained in the final pack</h3><ul>{adaptive.pack.value.unresolvedRisks.map((risk,index)=><li key={index}>{risk}</li>)}</ul></>}<p className="small muted">Open the saved artifacts below to review the brief, checklist, and announcement draft.</p></section>}
@@ -117,11 +125,14 @@ function AcceptedBrowserChoices({missionId,sources,onImport,disabled}:{missionId
 function DecisionForm({adaptive,enabled,busy,onDecision}:{adaptive:AdaptiveState;enabled:boolean;busy:boolean;onDecision:AdaptiveLaunchProps['onDecision']}){
   const [optionId,setOptionId]=useState('');
   const [constraints,setConstraints]=useState('');
+  const formRef=useRef<HTMLFormElement>(null);
+  const focused=useRef(false);
   const analysis=adaptive.analysis!;
   const decision=adaptive.decision?.sourceRevision===adaptive.sourceRevision?adaptive.decision:undefined;
-  return <form className="adaptive-decision-form" id="adaptive-launch-decision" tabIndex={-1} onSubmit={event=>{event.preventDefault();void onDecision({requestId:crypto.randomUUID(),expectedRevision:adaptive.revision,analysisVersion:analysis.version,optionId,constraints:constraints.trim()}).catch(()=>{});}}>
+  useEffect(()=>{if(enabled&&!decision&&!focused.current){focused.current=true;formRef.current?.focus({preventScroll:true});}},[decision,enabled]);
+  return <form ref={formRef} className="adaptive-decision-form" id="adaptive-launch-decision" tabIndex={-1} onSubmit={event=>{event.preventDefault();void onDecision({requestId:crypto.randomUUID(),expectedRevision:adaptive.revision,analysisVersion:analysis.version,optionId,constraints:constraints.trim()}).catch(()=>{});}}>
     <fieldset disabled={busy||!enabled}><legend>{decision?'Selected launch approach':'Choose how the launch should proceed'}</legend><div className="adaptive-options">{analysis.value.options.map(option=><label className="adaptive-option" data-selected={(decision?.optionId??optionId)===option.id} key={option.id}><input type="radio" name={`launch-option-${analysis.version}`} value={option.id} checked={(decision?.optionId??optionId)===option.id} onChange={()=>setOptionId(option.id)} required/><div><div className="adaptive-option-heading"><strong>{option.label}</strong>{option.id===analysis.value.recommendedOptionId&&<Badge tone="blue">Recommended</Badge>}{option.id===decision?.optionId&&<Badge tone="green">Selected</Badge>}</div><p>{option.description}</p><ul>{option.consequences.map((consequence,index)=><li key={index}>{consequence}</li>)}</ul></div></label>)}</div></fieldset>
-    {decision?<Notice tone="blue"><strong>Decision saved {dateTime(decision.at)}.</strong>{decision.constraints&&<p>{decision.constraints}</p>}Dependent work uses this decision and its constraints.</Notice>:<><Field label="Additional constraints" help="Optional. Add corrections or limits the launch pack must respect."><textarea value={constraints} onChange={event=>setConstraints(event.target.value)} rows={3} maxLength={4000} disabled={busy||!enabled}/></Field><Button type="submit" busy={busy} disabled={!enabled||!optionId}><CheckCircle2 size={14}/>Save decision and continue</Button>{!enabled&&<p className="small muted">Decision submission is available when the mission is running and the human decision task is ready.</p>}</>}
+    {decision?<Notice tone="blue"><strong>Decision Receipt saved {dateTime(decision.at)}.</strong><p>Source revision {decision.sourceRevision} · analysis <code>{decision.analysisVersion}</code></p>{decision.constraints&&<p><strong>Applied constraint:</strong> {decision.constraints}</p>}Dependent work uses this decision and its constraints.</Notice>:<><Field label="Additional constraints" help="Optional. Add corrections or limits the launch pack must respect."><textarea value={constraints} onChange={event=>setConstraints(event.target.value)} rows={3} maxLength={4000} disabled={busy||!enabled}/></Field><Button type="submit" busy={busy} disabled={!enabled||!optionId}><CheckCircle2 size={14}/>Save decision and continue</Button>{!enabled&&<p className="small muted">Decision submission is available when the mission is running and the human decision task is ready.</p>}</>}
   </form>;
 }
 

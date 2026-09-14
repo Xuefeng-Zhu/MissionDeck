@@ -11,6 +11,8 @@ import type { ExecutionWorkspaceProvider, ExecutionTaskRecord, ExecutionDocument
 import { validateExecutionPlan, type ExecutionRunner, type ExecutionTaskInput as RunnerTaskInput } from './execution-runner.js';
 import { prepareAdaptiveSources, initialAdaptiveState, currentSources, sourceChanges, sourceDocument, validateAdaptiveCitations } from './adaptive-execution.js';
 import { resolveModelConfig } from './model-provider.js';
+import { config } from './config.js';
+import { consumePublicDemoModelCall } from './demo-budget.js';
 
 type WorkspaceFactory = (scope: Scope) => ExecutionWorkspaceProvider;
 interface Journal {
@@ -27,6 +29,10 @@ const terminal = (e: MissionExecution) => ['completed', 'cancelled'].includes(e.
 const active = (e: MissionExecution) => ['planning', 'running'].includes(e.status);
 const message = (error: unknown) => error instanceof ProviderError || error instanceof HttpError ? error.message : 'Execution failed. Inspect the operation and retry when resolved.';
 const sameAudience = (expected: ExecutionArtifact, observed: ExecutionDocumentRecord) => !expected.audienceIds || fingerprint([...expected.audienceIds].sort()) === fingerprint([...observed.audienceIds].sort());
+const workspaceLabel = (e:MissionExecution) => e.mode==='fixture'?'the fixture workspace':'Ambiguous';
+const demandsWorker = (e:MissionExecution) => e.status==='planning'||e.status==='running'&&(
+  Boolean(e.pendingVerification)||e.tasks.some(task=>['running','saving'].includes(task.status)||task.status==='queued'&&task.dependsOn.every(id=>e.tasks.find(item=>item.id===id)?.status==='completed'))
+);
 
 /** Durable mission coordinator. Only the workspace adapter can perform external writes. */
 export class ExecutionService {
@@ -36,9 +42,35 @@ export class ExecutionService {
   private timer?: ReturnType<typeof setInterval>;
   private readonly aborts = new Map<string, AbortController>();
   private readonly ticking = new Set<string>();
+  private workerCursor?:{at:string;id:string};
+  private pollCursor?:{at:string;id:string};
   private stopped = false;
+  private publicDemoLimits={maxMissions:config.PUBLIC_DEMO_MAX_MISSIONS,maxConcurrent:config.PUBLIC_DEMO_MAX_CONCURRENT,maxSourceRevisions:config.PUBLIC_DEMO_MAX_SOURCE_REVISIONS};
   constructor(readonly db: Database, readonly workspace: WorkspaceFactory, readonly runner: ExecutionRunner,
     readonly now: () => string = () => new Date().toISOString(), readonly adaptiveRunner?: ExecutionRunner) { this.store = new UpgradeStore(db); }
+
+  configurePublicDemoLimits(limits:{maxMissions:number;maxConcurrent:number;maxSourceRevisions:number}) { this.publicDemoLimits={...limits}; }
+
+  async abortScope(scope:Scope):Promise<void>{
+    if(!scope.ownerId.startsWith('demo-user:'))return;
+    const missions=await this.db.query<{mission_id:string}>("SELECT mission_id FROM upgrade_records WHERE kind='mission_execution' AND owner_id=$1 AND workspace_id=$2",[scope.ownerId,scope.workspaceId]);
+    for(const mission of missions.rows)this.aborts.get(mission.mission_id)?.abort();
+  }
+
+  async abortExpiredDemoRuns():Promise<void>{
+    const missions=await this.db.query<{mission_id:string}>("SELECT u.mission_id FROM upgrade_records u WHERE u.kind='mission_execution' AND u.owner_id LIKE 'demo-user:%' AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.owner_id=u.owner_id AND s.workspace_id=u.workspace_id AND s.expires_at>now())");
+    for(const mission of missions.rows)this.aborts.get(mission.mission_id)?.abort();
+  }
+
+  private async assertPublicDemoWorkerCapacity(scope:Scope,q:Query,excludeMissionId?:string):Promise<void>{
+    if(!scope.ownerId.startsWith('demo-user:'))return;
+    const activeDemo=await q<{mission_id:string;data:MissionExecution;leased:boolean;session_live:boolean}>("SELECT u.mission_id,u.data,EXISTS (SELECT 1 FROM mission_execution_leases l WHERE l.mission_id=u.mission_id AND l.expires_at>now()) AS leased,EXISTS (SELECT 1 FROM sessions s WHERE s.owner_id=u.owner_id AND s.workspace_id=u.workspace_id AND s.expires_at>now()) AS session_live FROM upgrade_records u WHERE u.kind='mission_execution' AND u.owner_id LIKE 'demo-user:%'");
+    // A call that crossed session expiry still consumes capacity until its lease
+    // ends. Expiry cleanup deliberately retains leased scopes. Queued work
+    // additionally requires a live session before it counts or pump() selects it.
+    const activeCount=activeDemo.rows.filter(row=>row.mission_id!==excludeMissionId&&(row.leased||row.session_live&&demandsWorker(row.data))).length;
+    if(activeCount>=this.publicDemoLimits.maxConcurrent)throw new HttpError(503,'The shared demo is at capacity. Try again in a few minutes.','demo_capacity');
+  }
 
   private selectedRunner(e: MissionExecution): ExecutionRunner {
     if (e.engine !== 'strands') return this.runner;
@@ -91,7 +123,10 @@ export class ExecutionService {
   private mutate(id: string, scope: Scope, fn: (e: MissionExecution, q: Query) => void | Promise<void>) {
     return this.db.transaction(async q => {
       const record = await this.store.get<MissionExecution>(key(id), 'mission_execution', scope, q);
-      await fn(record.data,q); record.data.updatedAt = this.now(); record.revision++;
+      const demandedBefore=demandsWorker(record.data);
+      await fn(record.data,q);
+      if(!demandedBefore&&demandsWorker(record.data))await this.assertPublicDemoWorkerCapacity(scope,q,id);
+      record.data.updatedAt = this.now(); record.revision++;
       await this.store.save(record, scope, q); await this.project(record.data, scope, q); return record.data;
     });
   }
@@ -115,9 +150,11 @@ export class ExecutionService {
     if (!human || !agent) throw new HttpError(422, 'Choose a current human and agent from the connected workspace.');
     const sources = isAdaptive ? prepareAdaptiveSources(input.sources) : undefined;
     const id = randomUUID(); const at = this.now();
+    const adaptive = isAdaptive ? initialAdaptiveState(sources!,at) : undefined;
+    if(adaptive&&scope.ownerId.startsWith('demo-user:'))adaptive.budget.maxModelCalls=Math.min(adaptive.budget.maxModelCalls,config.PUBLIC_DEMO_MAX_MODEL_CALLS);
     const execution: MissionExecution = {
       missionId: id, requestId: input.requestId, requestHash: hash, status: 'planning', mode: capabilities.mode, modelMode: runner.mode,
-      engine: isAdaptive ? 'strands' : 'direct', ...(isAdaptive ? {adaptive:initialAdaptiveState(sources!,at),modelProvider:capabilities.adaptive!.modelProvider,modelName:capabilities.adaptive!.modelName} : {}),
+      engine: isAdaptive ? 'strands' : 'direct', ...(adaptive ? {adaptive,modelProvider:capabilities.adaptive!.modelProvider,modelName:capabilities.adaptive!.modelName} : {}),
       goal: input.goal, context: input.context, human, agent, authorizedAssignees: [human,agent], summary: '', tasks: [], artifacts: [],
       budget: { maxTasks: isAdaptive ? 3 : input.maxTasks, maxAgentRuns: input.maxAgentRuns, agentRuns: 0 }, events: [], operations: [], lastError: null, createdAt: at, updatedAt: at,
     };
@@ -135,6 +172,11 @@ export class ExecutionService {
       if (duplicate.rows[0]) {
         if (duplicate.rows[0].data.requestHash !== hash) throw new HttpError(409, 'Start request content changed.');
         return { mission: (await this.db.get(duplicate.rows[0].data.missionId, scope, q))!, execution: duplicate.rows[0].data };
+      }
+      if(scope.ownerId.startsWith('demo-user:')){
+        const own=await q('SELECT id FROM missions WHERE owner_id=$1 AND workspace_id=$2 LIMIT $3',[scope.ownerId,scope.workspaceId,this.publicDemoLimits.maxMissions]);
+        if(own.rows.length>=this.publicDemoLimits.maxMissions)throw new HttpError(429,'This isolated demo session has used its mission allowance. Start a new session later to protect the shared demo budget.','demo_quota');
+        await this.assertPublicDemoWorkerCapacity(scope,q);
       }
       await this.db.save(mission, q);
       await this.store.save({ id: key(id), kind: 'mission_execution', missionId: id, revision: 1, data: execution }, scope, q);
@@ -219,7 +261,7 @@ export class ExecutionService {
   }
   private description(e: MissionExecution, t: ExecutionTask, brief?: ExecutionArtifact): string {
     const dependencies = t.dependsOn.map(id => { const d = e.tasks.find(t => t.id === id)!; return `${d.title}: ${d.providerId ?? d.id}`; }).join('\n');
-    return `Mission: ${e.goal}\nMission ID: ${e.missionId}\nTask ID: ${t.id}${brief ? `\nMission brief document ID: ${brief.id}` : ''}\nExecutor: ${t.assignee.name} (${t.assignee.kind}); ${t.assignee.kind === 'agent' ? e.adaptive ? 'Strands server worker' : 'MissionDeck server drafting worker' : 'human work'}\n\n${t.description}\n\nCompletion criteria:\n${t.completionCriteria.map(c => `- ${c}`).join('\n')}\nDependencies:\n${dependencies || 'None'}\n${e.adaptive && t.assignee.kind==='human' ? 'Choose a versioned decision in MissionDeck. Marking this task done alone cannot authorize a decision.' : t.assignee.kind === 'human' ? 'When ready, append your review feedback to this description and mark done in Ambiguous, or submit feedback in MissionDeck.' : 'Outputs are saved in Ambiguous and linked here.'}`;
+    return `Mission: ${e.goal}\nMission ID: ${e.missionId}\nTask ID: ${t.id}${brief ? `\nMission brief document ID: ${brief.id}` : ''}\nExecutor: ${t.assignee.name} (${t.assignee.kind}); ${t.assignee.kind === 'agent' ? e.adaptive ? 'Strands server worker' : 'MissionDeck server drafting worker' : 'human work'}\n\n${t.description}\n\nCompletion criteria:\n${t.completionCriteria.map(c => `- ${c}`).join('\n')}\nDependencies:\n${dependencies || 'None'}\n${e.adaptive && t.assignee.kind==='human' ? 'Choose a versioned decision in MissionDeck. Marking this task done alone cannot authorize a decision.' : t.assignee.kind === 'human' ? `When ready, append your review feedback to this description and mark done in ${workspaceLabel(e)}, or submit feedback in MissionDeck.` : `Outputs are saved in ${workspaceLabel(e)} and linked here.`}`;
   }
   private async provision(e: MissionExecution, scope: Scope) {
     const provider = this.workspace(scope);
@@ -344,6 +386,7 @@ export class ExecutionService {
         const record=await this.store.get<MissionExecution>(key(e.missionId),'mission_execution',scope,q);
         const budget=record.data.adaptive!.budget;const field=kind==='model'?'modelCalls':'toolCalls';const limit=kind==='model'?'maxModelCalls':'maxToolCalls';
         if(budget[field]>=budget[limit])throw new HttpError(409,`The mission ${kind} call budget is exhausted.`,'adaptive_budget_exhausted');
+        if(kind==='model'&&scope.ownerId.startsWith('demo-user:'))await consumePublicDemoModelCall(q,config.PUBLIC_DEMO_DAILY_MODEL_LIMIT);
         budget[field]++;record.revision++;record.data.updatedAt=this.now();await this.store.save(record,scope,q);
       }),
       activity:async event=>this.db.transaction(async q=>{
@@ -373,7 +416,10 @@ export class ExecutionService {
       if(lease.rows.length||pending.rows.length||e.tasks.some(t=>['running','saving','outcome_unknown'].includes(t.status)))throw new HttpError(409,'Work is running, saving, or awaiting reconciliation. Retry this change when the mission is idle.');
       if(e.status==='cancelled')throw new HttpError(409,'Cancelled missions cannot be changed.');
       const mission=await this.db.get(id,scope,q);if(mission?.lifecycle==='archived')throw new HttpError(409,'Archived missions cannot be changed.');
-      await change(e,q);record.revision++;e.updatedAt=this.now();await this.store.save(record,scope,q);await this.project(e,scope,q);
+      const demandedBefore=demandsWorker(e);
+      await change(e,q);
+      if(!demandedBefore&&demandsWorker(e))await this.assertPublicDemoWorkerCapacity(scope,q,id);
+      record.revision++;e.updatedAt=this.now();await this.store.save(record,scope,q);await this.project(e,scope,q);
       await this.store.save({id:requestKey,kind:'adaptive_request',missionId:id,revision:1,data:{hash,action,at:this.now()}},scope,q);
     });
     this.wake();return this.get(id,scope);
@@ -385,6 +431,7 @@ export class ExecutionService {
       if(e.status==='completed')throw new HttpError(409,'Reopen this mission before updating its sources.');
       const sources=prepareAdaptiveSources(input.sources,(await this.db.get(id,scope,q))!);const a=e.adaptive!;const before=currentSources(a);
       if(fingerprint(before.map(({documentId,...s})=>s))===fingerprint(sources))return;
+      if(scope.ownerId.startsWith('demo-user:')&&a.sourceRevision>=this.publicDemoLimits.maxSourceRevisions)throw new HttpError(429,'This demo has reached its source revision limit. Review the current Decision Receipt instead.','demo_quota');
       if(!e.tasks.length)throw new HttpError(409,'Wait for the initial mission tasks before updating sources.');
       const summary=sourceChanges(before,sources);a.sourceRevision++;a.revision++;
       a.sourceHistory.push({revision:a.sourceRevision,sources,createdAt:this.now(),changeSummary:summary});
@@ -423,12 +470,13 @@ export class ExecutionService {
   private async taskStep(e: MissionExecution, scope: Scope, taskId: string) {
     let t = e.tasks.find(t => t.id === taskId)!;
     const provider = this.workspace(scope);
+    const destination=workspaceLabel(e);
     if (t.status === 'saving' && t.pendingOutput) { await this.finishTask(e, scope, t); return; }
     if (!['queued','waiting_human'].includes(t.status) || !t.dependsOn.every(id => e.tasks.find(t => t.id === id)?.status === 'completed')) return;
     await this.assertActive(e.missionId, scope);
     const observed = await provider.readTask(t.providerId!);
-    if (observed.assigneeId !== t.assignee.id || observed.title !== t.title) throw new HttpError(409, 'The task assignee or title changed in Ambiguous. Reassign or review it before continuing.');
-    if (observed.status === 'cancelled' || observed.status === 'blocked') throw new HttpError(409, 'The workspace task is cancelled or blocked. Resolve it in Ambiguous, then resume.');
+    if (observed.assigneeId !== t.assignee.id || observed.title !== t.title) throw new HttpError(409, `The task assignee or title changed in ${destination}. Reassign or review it before continuing.`);
+    if (observed.status === 'cancelled' || observed.status === 'blocked') throw new HttpError(409, `The workspace task is cancelled or blocked. Resolve it in ${destination}, then resume.`);
     if (t.assignee.kind === 'human') {
       if (t.status === 'queued') {
         await this.updateTask(e, scope, t, `task:${t.id}:v${t.version}:human-ready`, { status: 'in_progress' });
@@ -441,15 +489,16 @@ export class ExecutionService {
       }
       if (observed.status !== 'done') return;
       const feedback = observed.description !== t.providerDescription ? observed.description : '';
-      if (!feedback.trim()) { if (t.lastError !== 'Add review feedback to the task description in Ambiguous, then sync again.') await this.mutate(e.missionId, scope, current => { current.tasks.find(item => item.id === taskId)!.lastError = 'Add review feedback to the task description in Ambiguous, then sync again.'; }); return; }
+      const feedbackPrompt=`Add review feedback to the task description in ${destination}, then sync again.`;
+      if (!feedback.trim()) { if (t.lastError !== feedbackPrompt) await this.mutate(e.missionId, scope, current => { current.tasks.find(item => item.id === taskId)!.lastError = feedbackPrompt; }); return; }
       e = await this.mutate(e.missionId, scope, current => {
         const task = current.tasks.find(item => item.id === taskId)!; this.observe(task, observed);
         if(task.status!=='waiting_human'||task.version!==t.version)return;
-        task.status = 'saving'; task.pendingOutput = { title: `Review: ${task.title}`, content: feedback, summary: `Feedback recorded in Ambiguous on the task assigned to ${task.assignee.name}.` };
+        task.status = 'saving'; task.pendingOutput = { title: `Review: ${task.title}`, content: feedback, summary: `Feedback recorded in ${destination} on the task assigned to ${task.assignee.name}.` };
       });
       await this.finishTask(e, scope, e.tasks.find(t => t.id === taskId)!); return;
     }
-    if (observed.fingerprint !== t.providerFingerprint) throw new HttpError(409, 'The agent task changed in Ambiguous. Human edits are preserved; review or reassign before running.');
+    if (observed.fingerprint !== t.providerFingerprint) throw new HttpError(409, `The agent task changed in ${destination}. Human edits are preserved; review or reassign before running.`);
     if (e.budget.agentRuns >= e.budget.maxAgentRuns) throw new HttpError(409, 'The authorized agent run budget is exhausted.');
     // Fetch authoritative input documents again, so the next agent uses the saved workspace version.
     const inputs: Array<{ title: string; content: string }> = [];
@@ -557,14 +606,15 @@ export class ExecutionService {
     if(action==='complete'){
       if(!attestation?.trim()||attestation.trim().length<10||attestation.length>500)throw new HttpError(422,'Provide an outcome verification statement between 10 and 500 characters.');
       const e=await this.required(id,scope);if(e.status!=='needs_review')throw new HttpError(409,'The mission is not ready for outcome verification.');
+      const destination=workspaceLabel(e);
       verifiedRevision=e.adaptive?.revision;
       for(const artifact of e.artifacts.filter(a=>!e.adaptive||a.sourceRevision===e.adaptive.sourceRevision)){
         const latest=await this.workspace(scope).readDocument(artifact.id);
         if(e.adaptive && !sameAudience(artifact,latest))throw new HttpError(409,'A saved artifact has different sharing permissions. Restore the authorized audience before verifying.');
         if(latest.title!==artifact.title||latest.content!==artifact.content){
-          if(e.adaptive)throw new HttpError(409,'A saved adaptive artifact changed in Ambiguous. Restore its reviewed content or update the source snapshots and rerun before verifying.');
+          if(e.adaptive)throw new HttpError(409,`A saved adaptive artifact changed in ${destination}. Restore its reviewed content or update the source snapshots and rerun before verifying.`);
           await this.mutate(id,scope,current=>{const a=current.artifacts.find(a=>a.id===artifact.id)!;Object.assign(a,{title:latest.title,content:latest.content,fingerprint:latest.fingerprint,verifiedAt:this.now()});});
-          throw new HttpError(409,'A saved artifact changed in Ambiguous. Review the refreshed content before verifying the outcome.');
+          throw new HttpError(409,`A saved artifact changed in ${destination}. Review the refreshed content before verifying the outcome.`);
         }
       }
     }
@@ -573,7 +623,7 @@ export class ExecutionService {
       if (action === 'complete') {
         if(e.adaptive?.revision!==verifiedRevision)throw new HttpError(409,'The source revision or decision changed during verification. Review the current outputs first.');
         if (e.status !== 'needs_review' || e.tasks.some(t => t.status !== 'completed') || !attestation?.trim()) throw new HttpError(409, 'Review every output and provide an outcome verification statement first.');
-        e.status = 'running'; e.pendingVerification = { actorId: scope.ownerId, statement: attestation.trim(), at: this.now() }; this.event(e, 'Saving the mission owner outcome verification in Ambiguous.');
+        e.status = 'running'; e.pendingVerification = { actorId: scope.ownerId, statement: attestation.trim(), at: this.now() }; this.event(e, `Saving the mission owner outcome verification in ${workspaceLabel(e)}.`);
       } else if (action === 'pause') { e.status = 'paused'; this.event(e, 'Mission paused. No new work will start; results already transmitted are retained.'); }
       else if (action === 'cancel') { e.status = 'cancelled'; for (const t of e.tasks) if (t.status !== 'completed') t.status = 'cancelled'; this.event(e, 'Mission cancelled. Existing workspace records and completed outputs are retained.'); }
       else { if (e.tasks.some(t => ['failed','blocked','outcome_unknown'].includes(t.status))) throw new HttpError(409, 'Retry, reassign, or reconcile the blocked task first.'); e.status = e.tasks.length ? 'running' : 'planning'; e.lastError = null; this.event(e, 'Mission resumed within its original scope and budget.'); }
@@ -627,17 +677,18 @@ export class ExecutionService {
 
   async reconcile(id: string, scope: Scope, operationId: string, suppliedId?: string) {
     const e = await this.required(id, scope); const record = await this.store.get<Journal>(operationId, 'execution_operation', scope);
+    const destination=workspaceLabel(e);
     if (record.missionId !== id || record.data.state !== 'outcome_unknown') throw new HttpError(409, 'Select an uncertain operation from this mission.');
     const op = record.data; const provider = this.workspace(scope); const providerId = op.kind==='dependency'?String(op.input.taskId):op.providerId ?? suppliedId;
-    if (!providerId) throw new HttpError(409, 'Inspect Ambiguous and enter the actual record ID. The create will not be repeated.');
+    if (!providerId) throw new HttpError(409, `Inspect ${destination} and enter the actual record ID. The create will not be repeated.`);
     let observed: ExecutionTaskRecord | ExecutionDocumentRecord;
     if (op.kind.startsWith('document')) {
       observed = await provider.readDocument(providerId);
       if (op.kind === 'document_create' && (observed.title !== op.input.title || observed.content !== op.input.content)) throw new HttpError(409, 'Document content does not match the original operation.');
-      if (op.kind === 'document_share' && fingerprint([...(op.input.expectedAudienceIds as string[]??op.input.audienceIds as string[])].sort())!==fingerprint([...observed.audienceIds].sort())) throw new HttpError(409, 'Document sharing does not match the authorized audience. Inspect it in Ambiguous.');
+      if (op.kind === 'document_share' && fingerprint([...(op.input.expectedAudienceIds as string[]??op.input.audienceIds as string[])].sort())!==fingerprint([...observed.audienceIds].sort())) throw new HttpError(409, `Document sharing does not match the authorized audience. Inspect it in ${destination}.`);
     } else if (op.kind === 'dependency') {
       const relation=await provider.readDependency(String(op.input.taskId),String(op.input.dependencyId));
-      if(!relation)throw new HttpError(409,'The expected dependency is not present. Inspect the task in Ambiguous.');
+      if(!relation)throw new HttpError(409,`The expected dependency is not present. Inspect the task in ${destination}.`);
       await this.db.transaction(async q=>{const current=await this.store.get<Journal>(record.id,record.kind,scope,q);current.revision++;current.data={...current.data,state:'done',result:relation,providerId:relation.id,error:undefined};await this.store.save(current,scope,q);});
       return this.get(id,scope);
     }
@@ -655,7 +706,7 @@ export class ExecutionService {
     return this.get(id, scope);
   }
   async recover() {
-    const records = await this.db.query<{ mission_id: string; owner_id: string; workspace_id: string }>("SELECT r.mission_id,r.owner_id,r.workspace_id FROM upgrade_records r LEFT JOIN mission_execution_leases l ON l.mission_id=r.mission_id WHERE r.kind='mission_execution' AND (l.mission_id IS NULL OR l.expires_at<now())");
+    const records = await this.db.query<{ mission_id: string; owner_id: string; workspace_id: string }>("SELECT r.mission_id,r.owner_id,r.workspace_id FROM upgrade_records r LEFT JOIN mission_execution_leases l ON l.mission_id=r.mission_id WHERE r.kind='mission_execution' AND (l.mission_id IS NULL OR l.expires_at<now()) AND (r.owner_id NOT LIKE 'demo-user:%' OR EXISTS (SELECT 1 FROM sessions s WHERE s.owner_id=r.owner_id AND s.workspace_id=r.workspace_id AND s.expires_at>now())) AND (EXISTS (SELECT 1 FROM upgrade_records op WHERE op.kind='execution_operation' AND op.mission_id=r.mission_id AND op.owner_id=r.owner_id AND op.workspace_id=r.workspace_id AND op.data->>'state'='running') OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(r.data->'tasks','[]'::jsonb)) task WHERE task->>'status'='running'))");
     for (const row of records.rows) {
       const scope = { ownerId: row.owner_id, workspaceId: row.workspace_id };
       await this.db.transaction(async q=>{
@@ -683,8 +734,29 @@ export class ExecutionService {
     if (this.pumping) return this.pumping;
     this.pumping = (async () => {
       await this.recover();
-      const rows = await this.db.query<{ mission_id: string; owner_id: string; workspace_id: string }>("SELECT mission_id,owner_id,workspace_id FROM upgrade_records WHERE kind='mission_execution' AND data->>'status' IN ('planning','running') ORDER BY updated_at LIMIT 50");
-      for (const row of rows.rows) { if (this.stopped) break; await this.tick(row.mission_id, { ownerId: row.owner_id, workspaceId: row.workspace_id }); }
+      type Candidate={id:string;mission_id:string;owner_id:string;workspace_id:string;updated_at:string;data:MissionExecution};
+      const page=async(cursor?:{at:string;id:string})=>this.db.query<Candidate>(`SELECT r.id,r.mission_id,r.owner_id,r.workspace_id,r.updated_at::text AS updated_at,r.data FROM upgrade_records r WHERE r.kind='mission_execution' AND r.data->>'status' IN ('planning','running') AND (r.owner_id NOT LIKE 'demo-user:%' OR EXISTS (SELECT 1 FROM sessions s WHERE s.owner_id=r.owner_id AND s.workspace_id=r.workspace_id AND s.expires_at>now())) ${cursor?'AND (r.updated_at>$1 OR (r.updated_at=$1 AND r.id>$2))':''} ORDER BY r.updated_at,r.id LIMIT 50`,cursor?[cursor.at,cursor.id]:[]);
+      const workers:Candidate[]=[];let workerCursor=this.workerCursor;
+      // Capacity demand and scheduler eligibility are different. Scan a bounded,
+      // rotating window for work that can advance immediately, so large sets of
+      // human waits cannot permanently hide a model-ready mission.
+      for(let pages=0;pages<20&&workers.length<50;pages++){
+        const batch=await page(workerCursor);
+        workers.push(...batch.rows.filter(row=>demandsWorker(row.data)).slice(0,50-workers.length));
+        if(batch.rows.length<50){workerCursor=undefined;break;}
+        const last=batch.rows.at(-1)!;workerCursor={at:last.updated_at,id:last.id};
+      }
+      this.workerCursor=workerCursor;
+      // Human waits, provider edits, reassignment projections, and configuration
+      // drift still need bounded polling. Rotate this independent 50-row page so
+      // every active mission remains observable without consuming demo capacity.
+      let polled=await page(this.pollCursor);
+      if(!polled.rows.length&&this.pollCursor)polled=await page();
+      if(polled.rows.length){const last=polled.rows.at(-1)!;this.pollCursor=polled.rows.length===50?{at:last.updated_at,id:last.id}:undefined;}
+      else this.pollCursor=undefined;
+      const workerIds=new Set(workers.map(row=>row.mission_id));
+      const ready=[...workers,...polled.rows.filter(row=>!workerIds.has(row.mission_id))];
+      for (const row of ready) { if (this.stopped) break; await this.tick(row.mission_id, { ownerId: row.owner_id, workspaceId: row.workspace_id }); }
     })().finally(() => { this.pumping = null; });
     return this.pumping;
   }

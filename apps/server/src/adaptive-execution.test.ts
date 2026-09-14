@@ -396,6 +396,11 @@ describe('adaptive launch coordinator', () => {
   it('does not recover a stale candidate after another worker acquires its lease', async () => {
     const e = await begin();
     const operationId = `exec-op:${randomUUID()}`;
+    await db.transaction(async q=>{
+      const saved=await store.get<MissionExecution>(`execution:${e.missionId}`,'mission_execution',scope,q);
+      saved.data.status='running';saved.data.tasks[0]!.status='running';saved.data.tasks[0]!.runId='interrupted-before-recovery';saved.revision++;
+      await store.save(saved,scope,q);
+    });
     const query = db.query.bind(db);
     let replacementStarted = false;
     const candidateQuery = vi.spyOn(db, 'query').mockImplementation(async <T extends Record<string, unknown>>(sql: string, params?: unknown[]) => {

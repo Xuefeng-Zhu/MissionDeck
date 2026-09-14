@@ -273,6 +273,16 @@ describe('execution controls and bounded retries', () => {
 });
 
 describe('restart and uncertain workspace writes', () => {
+  it('does not acquire recovery locks for terminal mission history', async () => {
+    const e = await begin();
+    const reviewed = await reviewAndFinish(e);
+    await service.control(reviewed.missionId, scope, 'complete', 'I reviewed every saved output and accept this mission outcome.');
+    expect((await read(e.missionId)).status).toBe('completed');
+    const transaction = vi.spyOn(db, 'transaction'); transaction.mockClear();
+    await service.recover();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
   it('blocks a paused mission after restart when runner mode changed and makes no new provider writes or model calls', async () => {
     const e = await begin();
     await service.control(e.missionId, scope, 'pause'); await service.stop();

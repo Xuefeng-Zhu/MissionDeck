@@ -14,6 +14,10 @@ export class UpgradeStore {
     return result.rows.map(row=>({id:row.id,kind:row.kind,missionId:row.mission_id,revision:row.revision,data:row.data}));
   }
   async save<T>(record:UpgradeRecord<T>,scope:Scope,q:Query):Promise<void> {
+    if(scope.ownerId.startsWith('demo-user:')){
+      const live=await q('SELECT token_hash FROM sessions WHERE owner_id=$1 AND workspace_id=$2 AND expires_at>now() LIMIT 1',[scope.ownerId,scope.workspaceId]);
+      if(!live.rows.length)throw new HttpError(401,'This demo session expired or was reset. Start a fresh session to continue.','unauthorized');
+    }
     if(record.missionId&&!await this.db.get(record.missionId,scope,q))throw new HttpError(404,'Mission not found in this workspace.');
     const result=await q(`INSERT INTO upgrade_records(id,kind,owner_id,workspace_id,mission_id,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7)
       ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,data=excluded.data,updated_at=now()

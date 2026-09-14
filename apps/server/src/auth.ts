@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Request, Response, NextFunction } from 'express';
@@ -28,8 +28,12 @@ export function authMiddleware(db: Database) {
     (req as AuthenticatedRequest).principal={ownerId:row.owner_id,workspaceId:row.workspace_id,origin:row.origin,tokenHash};next();
   };
 }
-export async function issueSession(db:Database,origin:string):Promise<string> {
+export async function issueSession(db:Database,origin:string,options?:{ownerId?:string;workspaceId?:string;expiresInSeconds?:number}):Promise<string> {
   const token=randomBytes(32).toString('hex');
-  await db.query('INSERT INTO sessions(token_hash,owner_id,workspace_id,origin,expires_at) VALUES($1,$2,$3,$4,$5)', [digest(token),'local-user','local-workspace',origin,new Date(Date.now()+24*3600_000).toISOString()]);
+  await db.query('INSERT INTO sessions(token_hash,owner_id,workspace_id,origin,expires_at) VALUES($1,$2,$3,$4,$5)', [digest(token),options?.ownerId??'local-user',options?.workspaceId??'local-workspace',origin,new Date(Date.now()+(options?.expiresInSeconds??86400)*1000).toISOString()]);
   return token;
+}
+export async function issueDemoSession(db:Database,origin:string):Promise<string> {
+  const id=randomUUID();
+  return issueSession(db,origin,{ownerId:`demo-user:${id}`,workspaceId:`demo-workspace:${id}`,expiresInSeconds:4*3600});
 }

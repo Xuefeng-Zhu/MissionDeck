@@ -21,8 +21,8 @@ async function startWindowRecording(output:string){
   if(!recorder)throw new Error('MISSIONDECK_WINDOW_RECORDER is required when ADAPTIVE_DEMO_VIDEO is set.');
   const listed=await execFileAsync(recorder,['list'],{timeout:20_000,encoding:'utf8'});
   const event=listed.stdout.trim().split('\n').map(line=>JSON.parse(line)).find(value=>value.event==='windows');
-  const candidates=(event?.windows??[]).filter((window:{bundleId:string;title:string;width:number})=>window.bundleId==='com.google.chrome.for.testing'&&window.title.includes('Mission Control')&&window.width>=1000);
-  if(candidates.length!==1)throw new Error(`Expected one isolated Mission Control Chrome window for recording; found ${candidates.length}.`);
+  const candidates=(event?.windows??[]).filter((window:{bundleId:string;title:string;width:number})=>window.bundleId==='com.google.chrome.for.testing'&&window.title.includes('MissionDeck')&&window.width>=1000);
+  if(candidates.length!==1)throw new Error(`Expected one isolated MissionDeck Chrome window for recording; found ${candidates.length}.`);
   const child=spawn(recorder,['record','--window-id',String(candidates[0].windowId),'--output',output,'--duration','300','--width','1920'],{stdio:['ignore','pipe','pipe']});
   child.stdout.setEncoding('utf8');child.stderr.setEncoding('utf8');
   let stdout='';let stderr='';child.stdout.on('data',data=>{stdout+=data;});child.stderr.on('data',data=>{stderr+=data;});
@@ -45,6 +45,15 @@ async function assertControlledBackend(request:APIRequestContext){
   const response=await request.get(`${isolatedBackend}/__adaptive_test__`);
   expect(response.ok()).toBe(true);
   expect(await response.json()).toEqual({workspace:'fixture',runner:'controlled-browser-test',liveModelCalls:false,liveAmbiguousCalls:false});
+}
+
+async function assertExtensionBuild(extensionPath:string){
+  const manifest=JSON.parse(await readFile(join(extensionPath,'manifest.json'),'utf8'));
+  const worker=manifest.background?.service_worker;
+  if(typeof worker!=='string'||!worker)throw new Error('The MV3 build manifest does not declare a background service worker. Run `pnpm --filter @mission/extension build`.');
+  try{await readFile(join(extensionPath,worker),'utf8');}
+  catch{throw new Error(`The MV3 background worker ${worker} is missing from ${extensionPath}. Run \`pnpm --filter @mission/extension build\`; the hosted bundle belongs in dist-hosted.`);}
+  return manifest;
 }
 
 async function forwardBackend(context:BrowserContext,request:APIRequestContext){
@@ -74,8 +83,8 @@ async function snapshot(page:Page):Promise<{execution:MissionExecution;mission:M
 }
 
 async function pair(page:Page){
-  await expect(page).toHaveTitle('Mission Control');
-  await expect(page.locator('.brand:visible').getByText('Mission Control',{exact:true}).first()).toBeVisible();
+  await expect(page).toHaveTitle('MissionDeck');
+  await expect(page.locator('.brand:visible').getByText('MissionDeck',{exact:true}).first()).toBeVisible();
   await page.getByRole('button',{name:'Settings',exact:true}).first().click();
   await page.getByLabel('Pairing code',{exact:true}).fill(pairingCode);
   await page.getByRole('button',{name:'Pair workspace',exact:true}).click();
@@ -84,17 +93,15 @@ async function pair(page:Page){
 
 async function startSample(page:Page,afterStarted?:()=>Promise<void>){
   if(await page.getByLabel('Switch mission',{exact:true}).isVisible())await page.getByLabel('Switch mission',{exact:true}).selectOption('new');
-  else await page.getByRole('button',{name:'New mission',exact:true}).click();
+  else await page.getByRole('button',{name:'New review',exact:true}).click();
   await demoPause(900);
-  await page.locator('input[value="adaptive_launch"]').check();
-  await page.getByRole('button',{name:'Try the adaptive launch sample',exact:true}).click();
   await expect(page.getByLabel('Source 1 name',{exact:true})).toHaveValue(/Product requirements/);
   await expect(page.getByLabel('Source 2 material',{exact:true})).toHaveValue(/Calendar integration is not ready/);
   await expect(page.getByLabel('Human reviewer',{exact:true})).not.toHaveValue('');
   await expect(page.getByLabel('Working agent',{exact:true})).not.toHaveValue('');
-  await expect(page.getByRole('button',{name:'Start mission',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Start launch review',exact:true})).toBeEnabled();
   await demoPause(2400);
-  await page.getByRole('button',{name:'Start mission',exact:true}).click();
+  await page.getByRole('button',{name:'Start launch review',exact:true}).click();
   await afterStarted?.();
   await expect(page.getByRole('button',{name:'Save decision and continue',exact:true})).toBeVisible({timeout:60_000});
   await expect(page.locator('.execution-task[data-state="waiting_human"]')).toHaveCount(1);
@@ -132,6 +139,88 @@ async function releasePhase(request:APIRequestContext,id:string,phase:string){
 async function browserPaint(page:Page){
   await page.evaluate(()=>new Promise<void>(resolvePaint=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolvePaint()))));
 }
+
+test('public demo session limits stay visible in Demo details and remain actionable',async({page,context},testInfo)=>{
+  test.skip(testInfo.project.name!=='adaptive-chromium','Use playwright.adaptive.config.ts for the isolated UI harness.');
+  let attempts=0;
+  await context.route(`${frontendBackend}/**`,async route=>{
+    const request=route.request();const path=new URL(request.url()).pathname;
+    const cors={'access-control-allow-origin':'http://127.0.0.1:5176','access-control-allow-headers':'Content-Type,Authorization','access-control-allow-methods':'GET,POST,OPTIONS'};
+    if(request.method()==='OPTIONS'){await route.fulfill({status:204,headers:cors});return;}
+    if(path==='/api/config'){await route.fulfill({status:200,headers:{...cors,'content-type':'application/json'},body:JSON.stringify({workspaceUpgradeEnabled:false,providerMode:'fixture',modelMode:'live',mode:'fixture',databaseMode:'postgres',deploymentMode:'hosted',publicDemoEnabled:true,publicDemoMaxSourceRevisions:2,modelEnabled:true,modelProvider:'openrouter',modelName:'controlled/public-demo',missing:[],setupRequired:[]})});return;}
+    if(path==='/api/demo/session'){attempts++;await route.fulfill({status:429,headers:{...cors,'content-type':'application/json'},body:JSON.stringify({error:'This network has reached the demo-session limit. Try again in about an hour.',code:'rate_limit'})});return;}
+    await route.fulfill({status:404,headers:{...cors,'content-type':'application/json'},body:JSON.stringify({error:'Unexpected controlled route.'})});
+  });
+  await page.goto('/');
+  await expect(page.getByText('This network has reached the demo-session limit. Try again in about an hour.',{exact:true})).toBeVisible();
+  expect(attempts).toBe(1);
+  const attemptsBeforeRetry=attempts;
+  await page.getByRole('button',{name:'Retry demo',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Public demo session',exact:true})).toBeVisible();
+  await expect(page.getByText('This network has reached the demo-session limit. Try again in about an hour.',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Retry demo session',exact:true}).click();
+  await expect.poll(()=>attempts).toBeGreaterThan(attemptsBeforeRetry);
+  await expect(page.getByText('This network has reached the demo-session limit. Try again in about an hour.',{exact:true})).toBeVisible();
+});
+
+test('conversation-first Harbor review exposes the human decision and launch pack accessibly',async({page,context,request},testInfo)=>{
+  test.skip(testInfo.project.name!=='adaptive-chromium','Use playwright.adaptive.config.ts for the isolated controlled harness.');
+  await forwardBackend(context,request);
+  const errors:string[]=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  page.on('console',entry=>{if(entry.type()==='error')errors.push(entry.text());});
+
+  await page.goto('/');
+  await pair(page);
+  if(await page.getByLabel('Switch mission',{exact:true}).isVisible())await page.getByLabel('Switch mission',{exact:true}).selectOption('new');
+  else if(await page.getByRole('button',{name:'New review',exact:true}).isVisible())await page.getByRole('button',{name:'New review',exact:true}).click();
+
+  const entry=page.getByRole('region',{name:'Harbor launch review',exact:true});
+  await expect(entry).toBeVisible();
+  await expect(entry.getByRole('heading',{level:2,name:'Run the Harbor launch review',exact:true})).toBeVisible();
+  await expect(entry.getByLabel('Source 1 name',{exact:true})).toHaveValue(/Product requirements/);
+  await expect(entry.getByLabel('Source 2 name',{exact:true})).toHaveValue(/Engineering status/);
+  await expect(entry.getByLabel('Source 3 name',{exact:true})).toHaveValue(/Customer feedback/);
+  const start=entry.getByRole('button',{name:'Start launch review',exact:true});
+  await expect(start).toBeEnabled();
+  await start.focus();
+  await expect(start).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  const workflow=page.getByRole('region',{name:'Strands workflow',exact:true});
+  await expect(workflow).toBeVisible({timeout:60_000});
+  for(const stage of ['Evidence','Readiness','Risk','Synthesis']){
+    await expect(workflow.getByText(stage,{exact:true})).toBeVisible();
+  }
+  await expect(workflow).toHaveAttribute('aria-live','polite');
+
+  const receipt=page.getByRole('region',{name:/Decision Receipt/});
+  await expect(receipt).toBeVisible({timeout:60_000});
+  await expect(receipt.getByRole('heading',{name:/Decision Receipt/})).toBeVisible();
+  await expect(receipt.getByRole('heading',{level:3,name:'What happens next',exact:true})).toBeVisible();
+  expect(await receipt.getByRole('radio').count()).toBeGreaterThanOrEqual(2);
+  await expect(receipt.getByLabel('Additional constraints',{exact:true})).toBeEditable();
+  await receipt.locator('input[type="radio"][value="private_beta"]').check();
+  await receipt.getByLabel('Additional constraints',{exact:true}).fill('Keep manual date entry and leave the announcement unsent for final review.');
+  await receipt.getByRole('button',{name:/continue/i}).click();
+
+  const pack=page.getByRole('region',{name:'Launch pack',exact:true});
+  await expect(pack).toBeVisible({timeout:60_000});
+  for(const heading of ['Launch brief','Readiness checklist','Announcement draft','Risks retained']){
+    await expect(pack.getByRole('heading',{name:heading,exact:true})).toBeVisible();
+  }
+  await expect(pack).toContainText(/manual date entry/i);
+  await expect(pack).toContainText(/unsent|not sent/i);
+
+  await page.setViewportSize({width:390,height:1000});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Conversation flow has no horizontal overflow at 390px').toBe(true);
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0);
+  await page.route(`${frontendBackend}/api/missions/*/execution`,route=>route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Session expired while this mission was open.',code:'unauthorized'})}));
+  await expect(page.getByRole('heading',{name:'Connect your workspace',exact:true})).toBeVisible({timeout:7000});
+  await expect(page.getByText('Session expired while this mission was open.',{exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>sessionStorage.getItem('mission-control.session'))).toBeNull();
+  expect(errors.filter(error=>!error.includes('401 (Unauthorized)'))).toEqual([]);
+});
 
 /** Delay one real GET response while later reads continue through normal routes. */
 async function holdExecutionRead(page:Page,outcome:'failure'|'snapshot'){
@@ -336,7 +425,7 @@ test('controlled adaptive browser workflow versions decisions and sources, impor
   await page.getByLabel('Title',{exact:true}).fill(reviewedTitle);
   await page.getByLabel('Excerpt',{exact:true}).fill(reviewedExcerpt);
   await page.getByLabel('Source URL',{exact:true}).fill(reviewedUrl);
-  await page.getByRole('button',{name:'Send to Mission Control',exact:true}).click();
+  await page.getByRole('button',{name:'Send to MissionDeck',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Review captured context',exact:true})).not.toBeVisible();
   await expect(page.getByRole('button',{name:'Execute',exact:true})).toHaveAttribute('aria-current','page');
   await expect(page.locator('.copilot-panel')).toHaveCount(0);
@@ -420,14 +509,14 @@ test('unpacked adaptive MV3 runtime preserves execution and accepted-source navi
   test.skip(testInfo.project.name!=='adaptive-chromium','Use playwright.adaptive.config.ts for the isolated controlled harness.');
   await assertControlledBackend(request);
   const extensionPath=resolve(process.cwd(),'apps/extension/dist');
-  const manifest=JSON.parse(await readFile(join(extensionPath,'manifest.json'),'utf8'));
+  const manifest=await assertExtensionBuild(extensionPath);
   expect(manifest.permissions).toContain('sidePanel');
   expect(manifest.permissions).not.toContain('tabs');
   const profile=await mkdtemp(join(tmpdir(),'mission-adaptive-extension-'));
   const context=await chromium.launchPersistentContext(profile,{channel:'chromium',headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,viewport:{width:390,height:1000},args:[`--disable-extensions-except=${extensionPath}`,`--load-extension=${extensionPath}`]});
   try{
     await forwardBackend(context,request);
-    const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
+    const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker',{timeout:15_000});
     const extensionId=new URL(worker.url()).host;
     expect(extensionId).toMatch(/^[a-p]{32}$/);
     const page=await context.newPage();
@@ -475,13 +564,14 @@ test('native headful Chrome side panel renders the adaptive decision and complet
   test.skip(testInfo.project.name!=='adaptive-chromium','Use playwright.adaptive.config.ts for the isolated controlled harness.');
   await assertControlledBackend(request);
   const extensionPath=resolve(process.cwd(),'apps/extension/dist');
+  await assertExtensionBuild(extensionPath);
   const profile=await mkdtemp(join(tmpdir(),'mission-adaptive-native-panel-'));
   let recording:Awaited<ReturnType<typeof startWindowRecording>>|undefined;
   let nativePhaseGate:string|undefined;
   const context=await chromium.launchPersistentContext(profile,{channel:'chromium',headless:false,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,viewport:null,deviceScaleFactor:undefined,isMobile:undefined,args:[`--disable-extensions-except=${extensionPath}`,`--load-extension=${extensionPath}`,'--window-size=1440,1000']});
   try{
     await forwardBackend(context,request);
-    const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
+    const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker',{timeout:15_000});
     const extensionId=new URL(worker.url()).host;
     const opener=await context.newPage();
     await opener.goto(`chrome-extension://${extensionId}/index.html`);
@@ -527,11 +617,11 @@ test('native headful Chrome side panel renders the adaptive decision and complet
     });
     await send('Fetch.enable',{patterns:[{urlPattern:`${frontendBackend}/*`,requestStage:'Request'}]});
     await send('Page.reload');
-    await expect.poll(()=>evaluate('document.body.innerText'),{timeout:30_000}).toContain('A launch decision needs your judgment');
+    await expect.poll(()=>evaluate('document.body.innerText'),{timeout:30_000}).toContain('Decision Receipt');
     await expect.poll(()=>evaluate('document.querySelector("[data-graph-node=decision]")?.getAttribute("data-state")')).toBe('waiting');
     expect(await evaluate(`document.querySelector('[aria-label="Execution graph"]')?.textContent`)).toContain('Source revision 1');
     const visible=await evaluate('({visibility:document.visibilityState,width:innerWidth,height:innerHeight,title:document.title,overflow:document.documentElement.scrollWidth>innerWidth})');
-    expect(visible.visibility).toBe('visible');expect(visible.width).toBeGreaterThan(200);expect(visible.width).toBeLessThan(800);expect(visible.overflow).toBe(false);expect(visible.title).toBe('Mission Control');
+    expect(visible.visibility).toBe('visible');expect(visible.width).toBeGreaterThan(200);expect(visible.width).toBeLessThan(800);expect(visible.overflow).toBe(false);expect(visible.title).toBe('MissionDeck');
     await demoPause(3000);
     const capture=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
     await writeFile(testInfo.outputPath('adaptive-native-sidepanel-decision.png'),Buffer.from(capture.data,'base64'));

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "tsc --noEmit -p ../../tsconfig.json",
+    "build": "tsc --noEmit -p ./tsconfig.json",
     "db:migrate": "tsx src/migrate.ts"
   },
   "dependencies": {

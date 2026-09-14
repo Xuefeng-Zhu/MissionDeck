@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+.data
+.pnpm-store
+node_modules
+**/node_modules
+**/dist
+**/dist-hosted
+artifacts/demo-video
+playwright-report
+test-results
+coverage
