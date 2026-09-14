@@ -6,3 +6,6 @@ overrides:
 onlyBuiltDependencies:
   - esbuild
   - '@swc/core'
+allowBuilds:
+  '@scarf/scarf': false
+  esbuild: true

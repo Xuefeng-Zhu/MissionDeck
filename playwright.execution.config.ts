@@ -5,6 +5,9 @@ import {join,resolve} from 'node:path';
 
 const temporaryRoot=existsSync('/private/tmp')?'/private/tmp':tmpdir();
 const runDirectory=mkdtempSync(join(temporaryRoot,'missiondeck-execution-browser-'));
+const frontendPort=process.env.MISSIONDECK_EXECUTION_TEST_PORT??'5173';
+if(!/^\d{4,5}$/.test(frontendPort)||Number(frontendPort)>65535)throw new Error('Choose a valid local execution-test port.');
+const frontendUrl=`http://127.0.0.1:${frontendPort}`;
 
 export default defineConfig({
   testDir:'./tests/browser',
@@ -16,7 +19,7 @@ export default defineConfig({
   outputDir:join(runDirectory,'test-results'),
   reporter:[['list']],
   use:{
-    baseURL:'http://127.0.0.1:5173',
+    baseURL:frontendUrl,
     trace:'off',
     screenshot:'only-on-failure',
     launchOptions:{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE},
@@ -35,14 +38,14 @@ export default defineConfig({
         DATABASE_MODE:'pglite',
         DATA_DIR:join(runDirectory,'data'),
         PAIRING_CODE:'execution-demo-fixture-code',
-        ALLOWED_ORIGINS:'http://127.0.0.1:5173,http://localhost:5173',
+        ALLOWED_ORIGINS:`${frontendUrl},http://localhost:${frontendPort}`,
         WORKSPACE_UPGRADE_ENABLED:'true',
       },
     },
     {
-      command:'../../node_modules/.bin/vite --host 127.0.0.1 --port 5173 --strictPort',
+      command:`../../node_modules/.bin/vite --host 127.0.0.1 --port ${frontendPort} --strictPort`,
       cwd:resolve(process.cwd(),'apps/extension'),
-      url:'http://127.0.0.1:5173',
+      url:frontendUrl,
       reuseExistingServer:!process.env.CI,
       timeout:120_000,
     },

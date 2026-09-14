@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "test:execution": "playwright test --config playwright.execution.config.ts",
+    "test:adaptive": "playwright test --config playwright.adaptive.config.ts",
+    "demo:adaptive": "tsx scripts/adaptive-demo.ts",
     "db:migrate": "pnpm --filter @mission/server db:migrate",
     "pairing-code": "tsx scripts/pairing-code.ts"
   },

@@ -58,7 +58,10 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
   app.use('/api',createExecutionRouter(executionService));
   app.use('/api',async(req,_res,next)=>{
     const match=/^\/missions\/([\w.:-]+)(?:\/|$)/.exec(req.path);
-    if(req.method!=='GET'&&match&&await executionService.managed(match[1]!,scope(req)))throw new HttpError(409,'This mission is managed by the execution worker. Use its task, review, and mission controls.');
+    if(req.method!=='GET'&&match&&await executionService.managed(match[1]!,scope(req))){
+      const evidenceOnly=req.method==='POST' && req.path===`/missions/${match[1]}/evidence` && !!(await executionService.get(match[1]!,scope(req)))?.adaptive;
+      if(!evidenceOnly)throw new HttpError(409,'This mission is managed by the execution worker. Use its task, review, and mission controls.');
+    }
     next();
   });
   if(config.WORKSPACE_UPGRADE_ENABLED){app.use(createContextRouter(service));app.use('/api',createArtifactRouter(service));app.use(createRoutinesRouter(service));}
@@ -99,7 +102,9 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
   });
   app.post('/api/missions/:id/evidence',async(req,res)=>{
     const body=z.object({text:z.string().max(20000).optional(),excerpt:z.string().max(20000).optional(),title:z.string().min(1).max(500),sourceUrl:z.string().max(2000).nullable().optional(),capturedAt:z.string().datetime({offset:true}),captureMethod:z.enum(['selection','page','manual']),fixture:z.boolean().optional(),truncated:z.boolean().optional(),id:z.string().optional(),contentHash:z.string().optional(),acceptedAt:z.string().optional(),retention:z.string().optional()}).strict().parse(req.body);
-    const id=param(req,'id');const result=await service.capture(id,body,scope(req),config.MODEL_MODE==='fixture');
+    const id=param(req,'id');
+    if(await executionService.managed(id,scope(req))){const result=await service.capture(id,body,scope(req),false);res.json({...result,summary:'Reviewed excerpt saved. Import it in the source editor to include it in a new analysis.'});return;}
+    const result=await service.capture(id,body,scope(req),config.MODEL_MODE==='fixture');
     if(config.MODEL_MODE==='live'&&!result.duplicate&&result.evidence&&!result.possibleDuplicateEvidenceIds?.length){const proposal=await planner.assessEvidence(result.mission,result.evidence,service.now());if(proposal){result.mission=await service.saveProposal(id,scope(req),proposal);result.proposal=proposal;}}
     res.json(result);
   });

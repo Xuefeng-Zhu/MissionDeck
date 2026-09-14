@@ -22,6 +22,8 @@ The Chrome side panel keeps the mission beside the pages where requirements and 
 
 The current implementation includes a Manifest V3 Chrome side panel and a durable server worker for the first complete execution flow: draft from supplied context, hand off to a human, then produce a final document. Ambiguous holds the assigned tasks, dependencies, and shared documents. The server runs the selected model for the assigned agent; it does not launch a native Codex or Hermes process. This repository is named MissionDeck; the product is Mission Control.
 
+The **Adaptive launch review** template adds real Strands agents for evidence extraction, parallel readiness and risk analysis, and a cited human decision brief. A saved decision releases the launch-pack task; changing reviewed sources creates a new revision and requires a fresh decision. Use the [adaptive launch guide and connected demo CLI](docs/adaptive-launch.md) for setup, the architecture, and a repeatable rehearsal. See [adaptive acceptance evidence](docs/adaptive-acceptance.md) for the checks actually completed.
+
 ## Run locally
 
 Requires Node.js 22+ and pnpm 10.32.1.
@@ -67,6 +69,8 @@ The complete execution flow is verified with an isolated fixture backend and Chr
 
 - [Mission execution product requirement](docs/mission-execution.md)
 - [Launch-brief execution demo](docs/execution-demo.md)
+- [Strands adaptive launch guide and demo CLI](docs/adaptive-launch.md)
+- [Adaptive launch acceptance evidence](docs/adaptive-acceptance.md)
 - [Setup and live smoke workflow](docs/setup.md)
 - [Verified integration capabilities and package versions](docs/integrations.md)
 - [Architecture and field ownership](docs/architecture.md)

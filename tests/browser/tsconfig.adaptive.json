@@ -1,0 +1,4 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["./adaptive-server.mts", "./adaptive.spec.ts"]
+}

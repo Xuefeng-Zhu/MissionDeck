@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { adaptiveSourcesSchema, type AdaptiveState, type AdaptiveActivity, type AdaptiveResult } from './adaptive.js';
 
 export interface ExecutionIdentity { id: string; name: string; kind: 'human' | 'agent' }
 export interface ExecutionCapabilities {
@@ -9,6 +10,7 @@ export interface ExecutionCapabilities {
   humans: ExecutionIdentity[];
   agents: ExecutionIdentity[];
   supportedWork: string;
+  adaptive?: { enabled: boolean; blockers: string[]; modelProvider: string; modelName: string };
 }
 export const executionStartSchema = z.object({
   requestId: z.string().uuid(),
@@ -18,7 +20,9 @@ export const executionStartSchema = z.object({
   agentId: z.string().min(1).max(160),
   maxTasks: z.number().int().min(3).max(12).default(8),
   maxAgentRuns: z.number().int().min(2).max(20).default(8),
-}).strict();
+  template: z.literal('adaptive_launch').optional(),
+  sources: adaptiveSourcesSchema.optional(),
+}).strict().refine(value => value.template === 'adaptive_launch' ? !!value.sources?.length && !value.context : !value.sources, 'Adaptive missions require reviewed sources instead of generic context.');
 export type ExecutionStart = z.infer<typeof executionStartSchema>;
 export type ExecutionStatus = 'planning' | 'running' | 'paused' | 'blocked' | 'needs_review' | 'completed' | 'cancelled';
 export type ExecutionTaskStatus = 'queued' | 'running' | 'waiting_human' | 'saving' | 'completed' | 'blocked' | 'failed' | 'outcome_unknown' | 'cancelled';
@@ -32,6 +36,8 @@ export interface ExecutionArtifact {
   kind: 'brief' | 'deliverable' | 'review' | 'summary' | 'verification';
   verifiedAt: string;
   mode: 'live' | 'fixture';
+  sourceRevision?: number;
+  audienceIds?: string[];
 }
 export interface ExecutionTask {
   id: string;
@@ -51,7 +57,7 @@ export interface ExecutionTask {
   runFinishedAt: string | null;
   artifacts: string[];
   lastError: string | null;
-  pendingOutput?: { title: string; content: string; summary: string };
+  pendingOutput?: { title: string; content: string; summary: string; adaptiveResult?: AdaptiveResult };
   reviewFeedback?: string;
   completionDescription?: string;
   assignmentPending?: boolean;
@@ -62,6 +68,11 @@ export interface ExecutionOperationSummary {
   providerId?: string; error?: string;
 }
 export interface MissionExecution {
+  engine?: 'direct' | 'strands';
+  modelProvider?: string;
+  modelName?: string;
+  adaptive?: AdaptiveState;
+  activity?: AdaptiveActivity[];
   missionId: string;
   requestId: string;
   requestHash: string;

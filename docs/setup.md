@@ -80,6 +80,18 @@ Use [integration verification](integrations.md) for exact capabilities and the p
 
 Do not create a replacement workspace to resolve a provider 401 or 403. Correct the intended workspace's credential or permissions. An `outcome_unknown` write requires inspection/reconciliation, not a blind create retry.
 
+## Adaptive launch review
+
+The Strands template requires the selected live model to support tools and structured output. Keep the existing explicit OpenRouter or direct OpenAI configuration. Workspace mode remains independent: real-model rehearsal can use fixture records, while connected acceptance requires live Ambiguous tasks and documents. The generic fixture mission flow remains available.
+
+Follow the [adaptive launch guide](adaptive-launch.md) for reviewed source snapshots, versioned human decisions, budget limits, and recovery. Its CLI uses an already running dedicated loopback backend, defaults to previewing exact mutation payloads, and requires `--execute` before dispatch. The default CLI backend port is **4332**; set `MISSIONDECK_BASE_URL` to the dedicated server you actually started. Give the CLI the pairing code through `MISSIONDECK_PAIRING_CODE`, or set `MISSIONDECK_DATA_DIR` explicitly to that server's data directory. It never searches for credentials or changes provider/model settings.
+
+```sh
+node --import tsx scripts/adaptive-demo.ts --help
+```
+
+The [adaptive acceptance record](adaptive-acceptance.md) separates controlled SDK tests, coordinator regression, browser checks, and real connected delivery.
+
 ## Validation
 
 ```sh
