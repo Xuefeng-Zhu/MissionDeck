@@ -1,6 +1,6 @@
 import http, { type Server } from 'node:http';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdtemp, readFile, readdir, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,9 +45,10 @@ async function controlledBackend(mode: 'live' | 'fixture' = 'live') {
   const directory = await mkdtemp(join(tmpdir(), 'missiondeck-adaptive-cli-test-'));
   const execution = syntheticExecution(); execution.mode = mode;
   const requests: Array<{ path: string; body: Record<string, unknown> }> = [];
-  const counters = { start: 0, decision: 0, update: 0, verify: 0, reopen: 0 };
+  const counters = { pair: 0, unauthorized: 0, mutationUnauthorized: 0, start: 0, decision: 0, update: 0, verify: 0, reopen: 0 };
   const seen = new Set<string>();
   const lose = { start: true, decision: true, verify: true };
+  const reject = { nextMutationWith401: false };
   const failures: string[] = [];
   const server = http.createServer(async (req, res) => {
     try {
@@ -55,10 +56,11 @@ async function controlledBackend(mode: 'live' | 'fixture' = 'live') {
       const input = raw ? JSON.parse(raw) as Record<string, unknown> : {};
       res.setHeader('Content-Type', 'application/json');
       const send = (body: unknown, status = 200) => { res.statusCode = status; res.end(JSON.stringify(body)); };
-      if (req.url === '/api/pair') { expect(input.code).toBe(pairing); send({ token }); return; }
-      expect(req.headers.authorization).toBe(`Bearer ${token}`);
+      if (req.url === '/api/pair') { counters.pair++; expect(input.code).toBe(pairing); send({ token, expiresIn: 3600 }); return; }
+      if (req.headers.authorization !== `Bearer ${token}`) { counters.unauthorized++; send({ error: 'Session expired.' }, 401); return; }
       if (req.url === '/api/execution/capabilities') { send({ mode, modelMode: 'live', enabled: true, blockers: [], adaptive: { enabled: true, blockers: [] }, humans: [execution.human], agents: [execution.agent] }); return; }
       if (req.method === 'GET') { send({ execution }); return; }
+      if (reject.nextMutationWith401) { reject.nextMutationWith401 = false; counters.mutationUnauthorized++; send({ error: 'Session revoked before dispatch.' }, 401); return; }
       requests.push({ path: req.url!, body: input });
       if (req.url === '/api/execution/missions') {
         if (!seen.has(String(input.requestId))) { seen.add(String(input.requestId)); counters.start++; }
@@ -84,7 +86,7 @@ async function controlledBackend(mode: 'live' | 'fixture' = 'live') {
   });
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); }); servers.push(server);
   const address = server.address(); if (!address || typeof address === 'string') throw new Error('Mock server address missing.');
-  return { directory, base: `http://127.0.0.1:${address.port}`, execution, counters, requests, failures };
+  return { directory, base: `http://127.0.0.1:${address.port}`, execution, counters, requests, failures, reject };
 }
 
 describe('adaptive connected-demo CLI with a controlled local HTTP backend', () => {
@@ -129,10 +131,66 @@ describe('adaptive connected-demo CLI with a controlled local HTTP backend', () 
     const evidence = JSON.parse(await readFile(join(exported.exported, 'execution.json'), 'utf8'));
     expect(evidence.limitation).toContain('does not perform fresh Ambiguous');
     expect((await stat(join(mock.directory, 'request-journal.json'))).mode & 0o777).toBe(0o600);
+    expect((await stat(join(mock.directory, 'session.json'))).mode & 0o777).toBe(0o600);
     expect((await stat(mock.directory)).mode & 0o777).toBe(0o700);
     expect((await stat(join(exported.exported, 'execution.json'))).mode & 0o777).toBe(0o600);
+    expect(mock.counters.pair).toBe(1);
     expect(await readdir(mock.directory)).not.toContain('request-journal.lock'); expect(mock.failures).toEqual([]);
   }, 40_000);
+
+  it('re-pairs once after a cached session is rejected by an authenticated read', async () => {
+    const mock = await controlledBackend();
+    const sessionPath = join(mock.directory, 'session.json');
+    await writeFile(sessionPath, JSON.stringify({ version: 1, baseUrl: mock.base, origin: 'http://127.0.0.1:5173', token: 'b'.repeat(64), expiresAt: new Date(Date.now() + 3600_000).toISOString() }), { mode: 0o600 });
+    const output = JSON.parse(await runCli(['status', '--mission-id', missionId], mock.directory, mock.base));
+    expect(output.missionId).toBe(missionId);
+    expect(mock.counters).toMatchObject({ unauthorized: 1, pair: 1 });
+    const cache = JSON.parse(await readFile(sessionPath, 'utf8'));
+    expect(cache).toMatchObject({ version: 1, baseUrl: mock.base, origin: 'http://127.0.0.1:5173', token });
+    expect((await stat(sessionPath)).mode & 0o777).toBe(0o600);
+    expect(mock.failures).toEqual([]);
+  });
+
+  it('refuses to read or replace a group-readable session cache', async () => {
+    const mock = await controlledBackend();
+    const sessionPath = join(mock.directory, 'session.json');
+    const original = JSON.stringify({ version: 1, baseUrl: mock.base, origin: 'http://127.0.0.1:5173', token: 'b'.repeat(64), expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+    await writeFile(sessionPath, original, { mode: 0o600 }); await chmod(sessionPath, 0o640);
+    const output = await runCli(['status', '--mission-id', missionId], mock.directory, mock.base, 1);
+    expect(output).toContain('Refusing to read or replace it');
+    expect(mock.counters).toMatchObject({ pair: 0, unauthorized: 0 });
+    expect(await readFile(sessionPath, 'utf8')).toBe(original);
+    expect((await stat(sessionPath)).mode & 0o077).toBe(0o040);
+    expect(mock.failures).toEqual([]);
+  });
+
+  it('refuses to read or replace a symbolic-link session cache', async () => {
+    const mock = await controlledBackend();
+    const sessionPath = join(mock.directory, 'session.json');
+    const targetPath = join(mock.directory, 'untrusted-session-target.json');
+    const original = JSON.stringify({ version: 1, baseUrl: mock.base, origin: 'http://127.0.0.1:5173', token: 'b'.repeat(64), expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+    await writeFile(targetPath, original, { mode: 0o600 }); await symlink(targetPath, sessionPath);
+    const output = await runCli(['status', '--mission-id', missionId], mock.directory, mock.base, 1);
+    expect(output).toContain('symbolic links are refused');
+    expect(mock.counters).toMatchObject({ pair: 0, unauthorized: 0 });
+    expect((await lstat(sessionPath)).isSymbolicLink()).toBe(true);
+    expect(await readFile(targetPath, 'utf8')).toBe(original);
+    expect(mock.failures).toEqual([]);
+  });
+
+  it('does not re-pair or replay a mutation rejected with 401', async () => {
+    const mock = await controlledBackend();
+    const cli = (args: string[], exit = 0) => runCli(args, mock.directory, mock.base, exit);
+    await cli(['start']);
+    mock.reject.nextMutationWith401 = true;
+    await cli(['start', '--execute'], 1);
+    expect(mock.counters).toMatchObject({ pair: 1, mutationUnauthorized: 1, start: 0 });
+    expect(mock.requests).toEqual([]);
+    const journal = JSON.parse(await readFile(join(mock.directory, 'request-journal.json'), 'utf8'));
+    expect(journal.operations).toHaveLength(1);
+    expect(journal.operations[0]).toMatchObject({ command: 'start', state: 'rejected', httpStatus: 401 });
+    expect(mock.failures).toEqual([]);
+  });
 
   it('refuses fixture-mode mutations and keeps fixture exports labeled as such', async () => {
     const mock = await controlledBackend('fixture');

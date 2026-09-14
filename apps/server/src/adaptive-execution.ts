@@ -1,4 +1,4 @@
-import { adaptiveSourcesSchema, redactSensitiveText, sanitizeSourceUrl, type AdaptiveSource, type AdaptiveSourceInput, type AdaptiveState, type Mission, type SourceCitation } from '@mission/domain';
+import { adaptiveSourcesSchema, redactSensitiveText, sourceUrlRequiresSanitization, type AdaptiveSource, type AdaptiveSourceInput, type AdaptiveState, type Mission, type SourceCitation } from '@mission/domain';
 import { fingerprint } from './providers/types.js';
 import { HttpError } from './errors.js';
 
@@ -7,7 +7,7 @@ export function prepareAdaptiveSources(raw: unknown, mission?: Mission): Adaptiv
   return adaptiveSourcesSchema.parse(raw).map(source => {
     if (redactSensitiveText(source.title) !== source.title || redactSensitiveText(source.content) !== source.content)
       throw new HttpError(422, 'A source contains sensitive material. Remove it in the source editor before sharing.');
-    if (source.sourceUrl && sanitizeSourceUrl(source.sourceUrl) !== source.sourceUrl)
+    if (source.sourceUrl && sourceUrlRequiresSanitization(source.sourceUrl))
       throw new HttpError(422, 'Remove credentials, private query parameters, or fragments from the source URL.');
     if (source.provenance === 'browser') {
       const accepted = mission?.evidence.find(e => e.id === source.evidenceId);

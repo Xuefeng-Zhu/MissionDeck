@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, mkdir, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -18,7 +18,7 @@ Commands:
   export                        Save private local evidence files, with layer labels.
 Options:
   --execute                     Dispatch a previewed mutation. Otherwise only local
-                                pairing/read requests and a private journal are used.
+                                session/read requests and a private journal are used.
   --mission-id UUID             Use an existing adaptive mission in this journal.
   --sources FILE                Optional source JSON for start; defaults to the
                                 editable fictional Harbor sample.
@@ -26,11 +26,11 @@ Options:
 Environment:
   MISSIONDECK_BASE_URL           Loopback backend (default http://127.0.0.1:4332).
   MISSIONDECK_ORIGIN             Loopback frontend (default http://127.0.0.1:5173).
-  MISSIONDECK_PAIRING_CODE       Pairing code; never use a command-line argument.
+  MISSIONDECK_PAIRING_CODE       Initial/recovery pairing code; never use a CLI argument.
   MISSIONDECK_DATA_DIR           Explicit alternative directory containing pairing-code.
   MISSIONDECK_HUMAN_ID           Exact connected human ID (required if not unique).
   MISSIONDECK_AGENT_ID           Exact connected agent ID (required if not unique).
-  MISSIONDECK_DEMO_DIR           Private journal/export directory; default is the
+  MISSIONDECK_DEMO_DIR           Private journal/session/export directory; default is the
                                 gitignored artifacts/demo-video/adaptive directory.
 
 Mutations require live workspace and model modes. Retry an uncertain idempotent
@@ -42,8 +42,12 @@ type Command = typeof commands[number];
 type Mutation = Exclude<Command, 'status' | 'export'>;
 interface Operation { id: string; command: Mutation; intentHash: string; path: string; payload: Record<string, unknown>; state: 'prepared' | 'dispatching' | 'accepted' | 'rejected' | 'uncertain'; at: string; httpStatus?: number; missionId?: string }
 interface Journal { version: 1; baseUrl: string; missionId?: string; operations: Operation[] }
+interface SessionCache { version: 1; baseUrl: string; origin: string; token: string; expiresAt: string }
 const repoRoot = fileURLToPath(new URL('../', import.meta.url));
-let sessionToken = ''; let pairingSecret = ''; let origin = ''; let releaseLock: (() => Promise<void>) | undefined;
+let sessionToken = ''; let pairingSecret = ''; let origin = ''; let sessionCanRefresh = false; let releaseLock: (() => Promise<void>) | undefined;
+const sessionExpiryMarginMs = 30_000;
+const maxCachedSessionSeconds = 24 * 60 * 60;
+const currentUid = typeof process.getuid === 'function' ? process.getuid() : undefined;
 class ApiFailure extends Error { constructor(readonly status?: number) { super(status ? `MissionDeck returned HTTP ${status}. Inspect mission status and the saved request journal before retrying.` : 'MissionDeck did not confirm the response. The saved request journal must be retained for recovery.'); } }
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function safeMessage(value: unknown) {
@@ -61,6 +65,31 @@ async function privateJson(path: string, value: unknown) {
   const temporary = `${path}.${randomUUID()}.tmp`;
   await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { flag: 'wx', mode: 0o600 }); await rename(temporary, path);
 }
+function ownedOnly(uid: number, mode: number) {
+  return (currentUid === undefined || uid === currentUid) && (mode & 0o077) === 0;
+}
+async function secureDemoDirectory(path: string, create: boolean) {
+  let details;
+  try { details = await lstat(path); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('MISSIONDECK_DEMO_DIR could not be inspected safely. Use a private owner-controlled directory.');
+    if (!create) return false;
+    await mkdir(path, { recursive: true, mode: 0o700 });
+    details = await lstat(path);
+  }
+  if (details.isSymbolicLink() || !details.isDirectory() || !ownedOnly(details.uid, details.mode)) throw new Error('MISSIONDECK_DEMO_DIR must be a real current-user directory with no group or other permissions (for example mode 0700); symbolic links are refused.');
+  return true;
+}
+async function secureSessionFile(path: string) {
+  let details;
+  try { details = await lstat(path); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw new Error('The private session cache could not be inspected safely. Refusing to read or replace it.');
+  }
+  if (details.isSymbolicLink() || !details.isFile() || !ownedOnly(details.uid, details.mode)) throw new Error('The private session cache must be a real current-user file with no group or other permissions (for example mode 0600); symbolic links are refused. Refusing to read or replace it.');
+  return true;
+}
 async function request<T>(base: string, path: string, body?: unknown): Promise<T> {
   let response: Response;
   try { response = await fetch(`${base}${path}`, { method: body === undefined ? 'GET' : 'POST', redirect: 'error', signal: AbortSignal.timeout(20_000),
@@ -69,6 +98,54 @@ async function request<T>(base: string, path: string, body?: unknown): Promise<T
   catch { throw new ApiFailure(); }
   if (!response.ok) throw new ApiFailure(response.status); // Never print upstream response bodies.
   try { return await response.json() as T; } catch { throw new ApiFailure(); }
+}
+function validSessionCache(value: unknown, base: string): value is SessionCache {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<SessionCache>;
+  const expiresAt = typeof candidate.expiresAt === 'string' ? Date.parse(candidate.expiresAt) : Number.NaN;
+  return candidate.version === 1 && candidate.baseUrl === base && candidate.origin === origin &&
+    typeof candidate.token === 'string' && /^[a-f0-9]{64}$/.test(candidate.token) &&
+    Number.isFinite(expiresAt) && expiresAt > Date.now() + sessionExpiryMarginMs;
+}
+async function cachedSession(path: string, base: string) {
+  if (!await secureDemoDirectory(dirname(path), false) || !await secureSessionFile(path)) return undefined;
+  try {
+    const value = JSON.parse(await readFile(path, 'utf8')) as unknown;
+    return validSessionCache(value, base) ? value.token : undefined;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' || error instanceof SyntaxError) return undefined;
+    throw new Error('The private session cache could not be read. Check its owner-only permissions or use a separate MISSIONDECK_DEMO_DIR.');
+  }
+}
+async function pairSession(base: string, path: string) {
+  await secureDemoDirectory(dirname(path), true);
+  await secureSessionFile(path);
+  sessionToken = '';
+  pairingSecret = process.env.MISSIONDECK_PAIRING_CODE?.trim() ?? '';
+  if (!pairingSecret && process.env.MISSIONDECK_DATA_DIR) {
+    try { pairingSecret = (await readFile(join(resolve(process.env.MISSIONDECK_DATA_DIR), 'pairing-code'), 'utf8')).trim(); }
+    catch { throw new Error('The explicitly selected data directory has no readable pairing code.'); }
+  }
+  if (!pairingSecret) throw new Error('Set MISSIONDECK_PAIRING_CODE or the explicit MISSIONDECK_DATA_DIR for initial pairing or session recovery. The script does not search for credentials.');
+  const paired = await request<{ token: string; expiresIn: number }>(base, '/api/pair', { code: pairingSecret });
+  if (!/^[a-f0-9]{64}$/.test(paired.token) || !Number.isSafeInteger(paired.expiresIn) || paired.expiresIn <= 0) throw new Error('The backend did not issue a valid local session.');
+  sessionToken = paired.token; sessionCanRefresh = false;
+  const expiresAt = new Date(Date.now() + Math.min(paired.expiresIn, maxCachedSessionSeconds) * 1000).toISOString();
+  await privateJson(path, { version: 1, baseUrl: base, origin, token: sessionToken, expiresAt } satisfies SessionCache);
+}
+async function initializeSession(base: string, path: string) {
+  sessionToken = await cachedSession(path, base) ?? '';
+  sessionCanRefresh = !!sessionToken;
+  if (!sessionToken) await pairSession(base, path);
+}
+async function readRequest<T>(base: string, path: string, sessionPath: string): Promise<T> {
+  try { return await request<T>(base, path); }
+  catch (error) {
+    if (!(error instanceof ApiFailure) || error.status !== 401 || !sessionCanRefresh) throw error;
+    sessionCanRefresh = false;
+    await pairSession(base, sessionPath);
+    return request<T>(base, path);
+  }
 }
 function selectIdentity(identities: ExecutionIdentity[], explicit: string | undefined, kind: 'human' | 'agent') {
   const choice = explicit ? identities.find(i => i.id === explicit) : identities.length === 1 ? identities[0] : undefined;
@@ -115,8 +192,10 @@ async function main() {
   origin = loopback(process.env.MISSIONDECK_ORIGIN ?? 'http://127.0.0.1:5173', 'MISSIONDECK_ORIGIN');
   const outputDir = resolve(process.env.MISSIONDECK_DEMO_DIR ?? join(repoRoot, 'artifacts/demo-video/adaptive'));
   const journalPath = join(outputDir, 'request-journal.json');
-  if (!['status', 'export'].includes(command)) {
-    await mkdir(outputDir, { recursive: true, mode: 0o700 }); await chmod(outputDir, 0o700);
+  const sessionPath = join(outputDir, 'session.json');
+  const readOnly = ['status', 'export'].includes(command);
+  await secureDemoDirectory(outputDir, !readOnly);
+  if (!readOnly) {
     const lockPath = join(outputDir, 'request-journal.lock');
     try { await mkdir(lockPath, { mode: 0o700 }); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; throw new Error(`Another rehearsal mutation is running or was interrupted. Inspect ${join(lockPath, 'owner.json')} before removing a stale lock. Status remains available.`); }
@@ -135,17 +214,10 @@ async function main() {
   const explicitMission = values['mission-id'] ?? journal.missionId;
   if (command === 'start' && values['mission-id']) throw new Error('start creates or reuses its journaled mission; do not supply --mission-id.');
   if (command !== 'start' && !explicitMission) throw new Error('No mission ID is saved. Start the dedicated demo or supply --mission-id.');
-  pairingSecret = process.env.MISSIONDECK_PAIRING_CODE?.trim() ?? '';
-  if (!pairingSecret && process.env.MISSIONDECK_DATA_DIR) {
-    try { pairingSecret = (await readFile(join(resolve(process.env.MISSIONDECK_DATA_DIR), 'pairing-code'), 'utf8')).trim(); }
-    catch { throw new Error('The explicitly selected data directory has no readable pairing code.'); }
-  }
-  if (!pairingSecret) throw new Error('Set MISSIONDECK_PAIRING_CODE or the explicit MISSIONDECK_DATA_DIR for this backend. The script does not search for credentials.');
-  sessionToken = (await request<{ token: string }>(base, '/api/pair', { code: pairingSecret })).token;
-  if (!/^[a-f0-9]{64}$/.test(sessionToken)) throw new Error('The backend did not issue a valid local session.');
+  await initializeSession(base, sessionPath);
   let execution: MissionExecution | undefined;
   if (explicitMission) {
-    const loaded = (await request<{ execution: MissionExecution | null }>(base, `/api/missions/${explicitMission}/execution`)).execution;
+    const loaded = (await readRequest<{ execution: MissionExecution | null }>(base, `/api/missions/${explicitMission}/execution`, sessionPath)).execution;
     validateMission(loaded); execution = loaded; journal.missionId = loaded.missionId;
   }
   if (command === 'status') { console.log(JSON.stringify(summary(execution!, journal), null, 2)); return; }
@@ -164,7 +236,7 @@ async function main() {
     await privateJson(join(evidenceDir, 'manifest.json'), { exportedAt: at, evidenceLayer: layer, ...summary(e, journal), artifacts: manifest });
     console.log(JSON.stringify({ exported: evidenceDir, evidenceLayer: layer, artifacts: manifest.length }, null, 2)); return;
   }
-  const capabilities = await request<ExecutionCapabilities>(base, '/api/execution/capabilities');
+  const capabilities = await readRequest<ExecutionCapabilities>(base, '/api/execution/capabilities', sessionPath);
   if (capabilities.mode !== 'live' || capabilities.modelMode !== 'live' || !capabilities.adaptive?.enabled) throw new Error('The connected rehearsal requires enabled adaptive execution with live workspace and live model modes. Check Settings for setup requirements.');
   if (execution) requireLive(execution);
   if (command === 'start' && execution) { console.log(JSON.stringify(summary(execution, journal), null, 2)); return; }

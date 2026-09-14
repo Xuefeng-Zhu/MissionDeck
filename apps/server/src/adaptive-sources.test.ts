@@ -35,8 +35,21 @@ describe('adaptive reviewed source boundary', () => {
 
   it('requires the user to remove sensitive text and private URL material', () => {
     expect(() => prepareAdaptiveSources([pasted({ content: 'password=synthetic-test-password' })])).toThrow('sensitive material');
+    expect(() => prepareAdaptiveSources([pasted({ content: 'See https://example.com/report?token=synthetic-token for details.' })])).toThrow('sensitive material');
+    expect(() => prepareAdaptiveSources([pasted({ content: 'See https://synthetic-user:synthetic-password@example.com/report for details.' })])).toThrow('sensitive material');
     expect(() => prepareAdaptiveSources([pasted({ sourceUrl: 'https://example.com/report?token=synthetic-token' })])).toThrow('source URL');
     expect(() => prepareAdaptiveSources([pasted({ sourceUrl: 'https://synthetic-user:synthetic-password@example.com/report' })])).toThrow('source URL');
+    expect(() => prepareAdaptiveSources([pasted({ sourceUrl: 'https://example.com/report#private' })])).toThrow('source URL');
+    expect(() => prepareAdaptiveSources([pasted({ sourceUrl: 'not a URL' })])).toThrow();
+  });
+
+  it('accepts benign URL canonicalization without rewriting reviewed source text', () => {
+    const input = pasted({
+      title: 'Engineering status at https://example.com',
+      content: 'See https://example.com and https://example.com/report?view=summary for details.',
+      sourceUrl: 'https://example.com',
+    });
+    expect(prepareAdaptiveSources([input])[0]).toMatchObject(input);
   });
 
   it('retains embedded instructions as quoted source data without interpreting them', () => {

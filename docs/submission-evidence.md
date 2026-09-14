@@ -18,7 +18,7 @@ This page records what each MissionDeck proof artifact establishes. It deliberat
 
 The final rebuild candidate was verified on September 14, 2026:
 
-- 382 tests across 36 files passed;
+- 390 tests across 36 files passed, including the PR-review regressions for bounded dispatch, URL handling, and hardened CLI session reuse;
 - full-repository TypeScript and the production extension/server build passed;
 - both public-demo and private-hosted web bundles passed, with the public JavaScript bundle at 431.61 kB (128.17 kB gzip);
 - the public-demo Docker image built successfully and `render.yaml` parsed successfully;
@@ -48,7 +48,7 @@ Complete this table on the exact public submission commit.
 | Evidence | Required record | Status |
 | --- | --- | --- |
 | Public source | Default-branch commit SHA, public URL, MIT license detected | Review branch and MIT file ready; default-branch merge and GitHub detection TODO |
-| Unit/integration | Command, test count, timestamp, exit 0 | Ready locally: 382/382 across 36 files on September 14, 2026 |
+| Unit/integration | Command, test count, timestamp, exit 0 | Ready locally: 390/390 across 36 files on September 14, 2026 |
 | Production build | Command, timestamp, exit 0, warnings summarized | Ready locally: typecheck, extension/server, both hosted modes, Docker image, and Render YAML passed; private Copilot bundle retains existing large-chunk warnings |
 | Browser | Scenario count, surfaces, viewport(s), timestamp | Ready on controlled/fixture layers: 6/6 adaptive plus 1/1 persisted execution; 1440×1000 workspace and native Chrome side panel on September 14, 2026 |
 | Real model | Vendor, model, timestamp, mission/run IDs, source revision, bounded counters | TODO or explicitly omit claim |

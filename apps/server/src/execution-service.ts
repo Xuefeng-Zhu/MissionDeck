@@ -756,7 +756,16 @@ export class ExecutionService {
       else this.pollCursor=undefined;
       const workerIds=new Set(workers.map(row=>row.mission_id));
       const ready=[...workers,...polled.rows.filter(row=>!workerIds.has(row.mission_id))];
-      for (const row of ready) { if (this.stopped) break; await this.tick(row.mission_id, { ownerId: row.owner_id, workspaceId: row.workspace_id }); }
+      let next=0;
+      const dispatch=async()=>{
+        while(!this.stopped){
+          const row=ready[next++];if(!row)return;
+          await this.tick(row.mission_id,{ownerId:row.owner_id,workspaceId:row.workspace_id});
+        }
+      };
+      const results=await Promise.allSettled(Array.from({length:Math.min(ready.length,this.publicDemoLimits.maxConcurrent)},dispatch));
+      const failed=results.find((result):result is PromiseRejectedResult=>result.status==='rejected');
+      if(failed)throw failed.reason;
     })().finally(() => { this.pumping = null; });
     return this.pumping;
   }

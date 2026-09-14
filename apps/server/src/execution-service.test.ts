@@ -311,6 +311,57 @@ describe('restart and uncertain workspace writes', () => {
     expect((await records('fixture_execution_document'))).toHaveLength(2);
   });
 
+  it('dispatches ready missions concurrently up to the configured limit', async () => {
+    service.configurePublicDemoLimits({ maxMissions: 10, maxConcurrent: 2, maxSourceRevisions: 3 });
+    const missions = [];
+    for (let index = 0; index < 3; index++) missions.push((await service.start(startInput(), scope)).mission);
+    const gates = new Map(missions.map(mission => [mission.id, deferred<void>()]));
+    const dispatched: string[] = [];
+    let active = 0; let peak = 0;
+    const tick = vi.spyOn(service, 'tick').mockImplementation(async id => {
+      dispatched.push(id); active++; peak = Math.max(peak, active);
+      try { await gates.get(id)!.promise; } finally { active--; }
+    });
+    const pumping = service.pump();
+    try {
+      await vi.waitFor(() => expect(dispatched).toHaveLength(2));
+      expect(peak).toBe(2);
+      gates.get(dispatched[0]!)!.resolve();
+      await vi.waitFor(() => expect(dispatched).toHaveLength(3));
+      expect(peak).toBe(2);
+    } finally {
+      for (const gate of gates.values()) gate.resolve();
+      await pumping;
+    }
+    expect(tick).toHaveBeenCalledTimes(3);
+    expect(new Set(dispatched)).toEqual(new Set(missions.map(mission => mission.id)));
+  });
+
+  it('keeps the pump pending until every concurrent dispatcher settles after a tick rejects', async () => {
+    service.configurePublicDemoLimits({ maxMissions: 10, maxConcurrent: 2, maxSourceRevisions: 3 });
+    await service.start(startInput(), scope); await service.start(startInput(), scope);
+    const bothStarted = deferred<void>(); const held = deferred<void>();
+    const failure = new Error('synthetic dispatch failure');
+    let calls = 0;
+    const tick = vi.spyOn(service, 'tick').mockImplementation(async () => {
+      calls++;
+      if (calls === 1) { await bothStarted.promise; throw failure; }
+      bothStarted.resolve(); await held.promise;
+    });
+    const pumping = service.pump();
+    let settled = false;
+    const observed = pumping.then(() => { settled = true; }, () => { settled = true; });
+    try {
+      await vi.waitFor(() => expect(tick).toHaveBeenCalledTimes(2));
+      await Promise.resolve(); await Promise.resolve();
+      expect(settled).toBe(false);
+    } finally {
+      bothStarted.resolve(); held.resolve();
+    }
+    await expect(pumping).rejects.toBe(failure);
+    await observed;
+  });
+
   it('resumes a saved human wait after coordinator restart without rerunning the first agent or duplicating records', async () => {
     const e = await begin();
     await service.stop(); service = coordinator(); await service.recover(); await service.pump();

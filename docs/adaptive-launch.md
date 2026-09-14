@@ -84,7 +84,7 @@ For a recovery demonstration, use a dedicated test mission and simulate a lost p
 
 ## Scripted connected rehearsal
 
-The [adaptive demo CLI](../scripts/adaptive-demo.ts) connects to an already running dedicated backend. It does not start servers, read `.env`, change the model, or enable live modes. `--help` works without credentials or network access. Every external mutation requires `--execute`; omitting it prints the exact payload and saves a private local request journal. Preview uses local pairing and read requests, and makes no Ambiguous or model writes.
+The [adaptive demo CLI](../scripts/adaptive-demo.ts) connects to an already running dedicated backend. It does not start servers, read `.env`, change the model, or enable live modes. `--help` works without credentials or network access. Every external mutation requires `--execute`; omitting it prints the exact payload and saves a private local request journal. Preview uses a private cached local session and read requests, and makes no Ambiguous or model writes.
 
 ```sh
 node --import tsx scripts/adaptive-demo.ts --help
@@ -96,7 +96,7 @@ node --import tsx scripts/adaptive-demo.ts start --execute
 node --import tsx scripts/adaptive-demo.ts status
 ```
 
-Set `MISSIONDECK_HUMAN_ID` and `MISSIONDECK_AGENT_ID` to exact discovered IDs if either roster has multiple choices. The CLI selects automatically only when there is exactly one valid identity of each kind. An alternative to the explicit data-directory pairing-code file is `MISSIONDECK_PAIRING_CODE` in the environment; never put the code in command arguments or recordings. The default source is the fictional sample. `start --sources /absolute/path/to/sources.json` uses an explicitly reviewed source array instead.
+Set `MISSIONDECK_HUMAN_ID` and `MISSIONDECK_AGENT_ID` to exact discovered IDs if either roster has multiple choices. The CLI selects automatically only when there is exactly one valid identity of each kind. An alternative to the explicit data-directory pairing-code file is `MISSIONDECK_PAIRING_CODE` in the environment; never put the code in command arguments or recordings. The pairing credential is needed for the first command and again only if the cached session expires, is rejected, or no longer matches the selected backend and origin. The default source is the fictional sample. `start --sources /absolute/path/to/sources.json` uses an explicitly reviewed source array instead.
 
 Read the saved brief and use an actual option ID shown by `status` in place of `OPTION_ID`:
 
@@ -125,7 +125,7 @@ node --import tsx scripts/adaptive-demo.ts export
 
 For further changes after completion, run `reopen` to preview, then `reopen --execute` before the next source update. `--mission-id UUID` selects an existing adaptive mission when the journal does not already belong to another mission. Use a separate `MISSIONDECK_DEMO_DIR` for another rehearsal; its default is the gitignored `artifacts/demo-video/adaptive` directory.
 
-The CLI persists request IDs and exact payloads **before dispatch**. If a response is lost, repeat the same command and arguments; idempotent endpoints receive the original payload. Preserve the journal when a revision conflict or unknown result is reported. Verification uses the existing completion API and an uncertain verification request is never automatically replayed: inspect status and reconcile it in Mission Control. A local lock prevents concurrent CLI mutations from replacing one another's journal; after a process crash, inspect its saved PID before removing a stale lock. Pairing codes and session tokens are never logged or saved.
+The CLI persists request IDs and exact payloads **before dispatch**. If a response is lost, repeat the same command and arguments; idempotent endpoints receive the original payload. Preserve the journal when a revision conflict or unknown result is reported. Verification uses the existing completion API and an uncertain verification request is never automatically replayed: inspect status and reconcile it in Mission Control. A local lock prevents concurrent CLI mutations from replacing one another's journal; after a process crash, inspect its saved PID before removing a stale lock. The CLI never logs or copies the pairing code. It atomically caches the origin- and backend-bound session token in `session.json` beside the journal with owner-only permissions, honors the server expiry, and re-pairs only when an authenticated read rejects a cached token. The final demo directory and session cache must be real current-user paths with no group or other permissions (normally `0700` and `0600`); symbolic links and permissive caches are rejected without replacement. Mutation requests are never automatically replayed after an authentication failure.
 
 ## Verification and evidence
 
@@ -137,7 +137,7 @@ pnpm exec vitest run apps/server/src/adaptive-execution.test.ts
 
 The suite covers the human gate, current-analysis decisions, idempotency, source revision changes, preserved documents and task identities, explicit reopening, cancellation, interrupted analyses and human waits, uncertain writes, scoped tool reads, and concurrent cumulative budget reservations. It uses fixture tasks and documents with a controlled runner. Separate SDK tests exercise the real Strands Graph against a controlled model transport.
 
-The 19-scenario coordinator suite and three CLI regression tests pass. They cover lost-response retries, lease takeover, stale updates, prevention of duplicate verification, private file permissions, and evidence labels. These checks made no real provider calls. Current SDK, browser, build, and connected acceptance results are recorded in [adaptive acceptance evidence](adaptive-acceptance.md).
+The 19-scenario coordinator suite and seven CLI regression tests pass. They cover lost-response retries, lease takeover, stale updates, cached-session recovery without mutation replay, rejection of permissive and symbolic-link caches, prevention of duplicate verification, private file permissions, and evidence labels. These checks made no real provider calls. Current SDK, browser, build, and connected acceptance results are recorded in [adaptive acceptance evidence](adaptive-acceptance.md).
 
 The graph browser harness has explicit test-only phase gates. It holds readiness and risk across the normal polling interval, releases readiness first to prove synthesis still waits, and then releases risk. It also exercises refresh interruption/recovery, delayed older responses, correlated tool outcomes, keyboard selection, reduced motion, new source revisions, saved decisions, document delivery, and final human verification. These gates exist only in the isolated fixture server; they simulate runner phases and do not exercise the Strands SDK. SDK outcome and tool-correlation checks are separate.
 
