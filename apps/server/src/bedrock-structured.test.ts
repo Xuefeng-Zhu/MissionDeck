@@ -32,13 +32,13 @@ class ScriptedModel extends Model<BaseModelConfig> {
 }
 
 const selected = () => resolveModelConfig({
-  MODEL_MODE: 'live', MODEL_PROVIDER: 'bedrock', AWS_REGION: 'us-west-2', BEDROCK_MODEL_ID: 'us.openai.gpt-5.6-luna',
+  MODEL_MODE: 'live', MODEL_PROVIDER: 'bedrock', AWS_REGION: 'us-west-2', BEDROCK_MODEL_ID: 'us.amazon.nova-2-lite-v1:0',
   OPENROUTER_API_KEY: undefined, OPENROUTER_MODEL: 'openai/gpt-5.6-luna', OPENAI_API_KEY: undefined, OPENAI_MODEL: 'gpt-5-mini',
 });
 
 describe('Bedrock structured output adapter', () => {
   it('forces the Strands output tool and permits one bounded schema repair', async () => {
-    const model = new ScriptedModel({ modelId: 'us.openai.gpt-5.6-luna' }, [
+    const model = new ScriptedModel({ modelId: 'us.amazon.nova-2-lite-v1:0' }, [
       { kind: 'text', text: 'I should use the result tool.' },
       { kind: 'tool', value: { answer: 42 } },
       { kind: 'tool', value: { answer: 'validated' } },
@@ -54,7 +54,7 @@ describe('Bedrock structured output adapter', () => {
   });
 
   it('rejects a result that never reaches a valid structured tool payload', async () => {
-    const model = new ScriptedModel({ modelId: 'us.openai.gpt-5.6-luna' }, [
+    const model = new ScriptedModel({ modelId: 'us.amazon.nova-2-lite-v1:0' }, [
       { kind: 'tool', value: { answer: 1 } },
       { kind: 'tool', value: { answer: 2 } },
       { kind: 'tool', value: { answer: 3 } },

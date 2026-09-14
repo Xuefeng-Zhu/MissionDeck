@@ -39,7 +39,7 @@ MissionDeck uses the Strands Agents SDK for a non-trivial, bounded multi-agent w
 - A **synthesis agent** waits for both branches and creates the decision brief with options, consequences, and a recommendation.
 - After the human gate, a fresh **launch-pack agent** receives the saved decision and produces artifacts that must reflect its constraints.
 
-The default model transport is Amazon Bedrock Converse with GPT-5.6 Luna through the US inference profile `us.openai.gpt-5.6-luna` in `us-west-2`. AWS authentication uses the standard credential chain, preferably a least-privileged runtime IAM role. OpenRouter and direct OpenAI remain explicit opt-in alternatives. The model cannot write provider records directly. MissionDeck validates structured outputs and literal source citations; the durable coordinator owns state changes, idempotency, budgets, external writes, read-back, and recovery.
+The default model transport is Amazon Bedrock Converse with Amazon Nova 2 Lite through the US geo inference profile `us.amazon.nova-2-lite-v1:0` in `us-west-2`. AWS authentication uses the standard credential chain, preferably a least-privileged runtime IAM role. OpenRouter and direct OpenAI remain explicit opt-in alternatives. The model cannot write provider records directly. MissionDeck validates structured outputs and literal source citations; the durable coordinator owns state changes, idempotency, budgets, external writes, read-back, and recovery.
 
 ## How We Used Codex
 
@@ -87,13 +87,15 @@ corepack pnpm test:adaptive
 
 The adaptive suite includes a headful Chrome side-panel check and therefore requires a graphical desktop session.
 
-For manual Strands output, set `MODEL_MODE=live` and use the default Bedrock configuration (`MODEL_PROVIDER=bedrock`, `AWS_REGION=us-west-2`, `BEDROCK_MODEL_ID=us.openai.gpt-5.6-luna`) with AWS authentication available through the standard credential chain. Keep `PROVIDER_MODE=fixture` for clearly labeled local records, run `corepack pnpm dev`, pair the browser, choose **Run the Harbor review**, inspect the source packet, and select **Start launch review**.
+For manual Strands output, set `MODEL_MODE=live` and use the default Bedrock configuration (`MODEL_PROVIDER=bedrock`, `AWS_REGION=us-west-2`, `BEDROCK_MODEL_ID=us.amazon.nova-2-lite-v1:0`) with AWS authentication available through the standard credential chain. Keep `PROVIDER_MODE=fixture` for clearly labeled local records, run `corepack pnpm dev`, pair the browser, choose **Run the Harbor review**, inspect the source packet, and select **Start launch review**.
 
 Detailed evidence boundaries and optional connected steps are in [`docs/submission-evidence.md`](docs/submission-evidence.md) and [`docs/adaptive-launch.md`](docs/adaptive-launch.md).
 
 ## Public Demo Link
 
-**TODO before final submission:** add the verified public demo URL, or leave this optional field blank. Do not use a local URL.
+https://missiondeck-tb8e.onrender.com
+
+The hosted judge flow is configured for Amazon Nova 2 Lite on Bedrock with a clearly labeled fixture workspace. Verify one complete public workflow on the exact deployed commit before final submission.
 
 ## Public Repository Link
 

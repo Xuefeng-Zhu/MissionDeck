@@ -103,7 +103,7 @@ describe('fixture execution runner', () => {
 
 describe('bounded live execution transport', () => {
   it('routes Bedrock execution through the structured Strands adapter and validates the result', async () => {
-    const selected = resolveModelConfig(environment({ MODEL_PROVIDER: 'bedrock', AWS_REGION: 'us-west-2', BEDROCK_MODEL_ID: 'us.openai.gpt-5.6-luna' }));
+    const selected = resolveModelConfig(environment({ MODEL_PROVIDER: 'bedrock', AWS_REGION: 'us-west-2', BEDROCK_MODEL_ID: 'us.amazon.nova-2-lite-v1:0' }));
     const invoker = vi.fn(async (_selected, request) => {
       expect(_selected).toBe(selected);
       expect(request).toMatchObject({ name: 'execution_plan', maxTokens: 5000 });

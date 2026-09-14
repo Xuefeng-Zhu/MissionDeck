@@ -58,11 +58,11 @@ Adaptive review requires `MODEL_MODE=live`. It uses the existing explicit provid
 
 | Choice | Required server configuration | Transport |
 | --- | --- | --- |
-| Amazon Bedrock (default) | `MODEL_PROVIDER=bedrock`, `AWS_REGION=us-west-2`, `BEDROCK_MODEL_ID=us.openai.gpt-5.6-luna`, and standard AWS credential-chain access | Bedrock Converse in `us-west-2` |
+| Amazon Bedrock (default) | `MODEL_PROVIDER=bedrock`, `AWS_REGION=us-west-2`, `BEDROCK_MODEL_ID=us.amazon.nova-2-lite-v1:0`, and standard AWS credential-chain access | Bedrock Converse in `us-west-2` |
 | OpenRouter | `MODEL_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | `https://openrouter.ai/api/v1` |
 | Direct OpenAI | `MODEL_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL` | `https://api.openai.com/v1` |
 
-Use a selected model that supports tools and the configured structured-result mechanism. For Bedrock Luna, Strands validates the schema through its bounded tool-based structured-output path rather than Bedrock's native structured-output format. Bedrock uses the AWS SDK's standard credential chain: prefer a least-privileged runtime IAM role on AWS, or a reviewed local profile for development. Adaptive review preserves the chosen provider, model, and region or endpoint; an unavailable model, invalid result, missing authentication, or unsupported capability is an explicit error. Another vendor's credential and fixture output are never fallback choices.
+Use a selected model that supports tools and the configured structured-result mechanism. For Amazon Nova 2 Lite, Strands validates the schema through its bounded tool-based structured-output path. Bedrock uses the AWS SDK's standard credential chain: prefer a least-privileged runtime IAM role on AWS, or a reviewed local profile for development. Adaptive review preserves the chosen provider, model, and region or endpoint; an unavailable model, invalid result, missing authentication, or unsupported capability is an explicit error. Another vendor's credential and fixture output are never fallback choices.
 
 Workspace mode is separate. `PROVIDER_MODE=fixture` permits a real-model rehearsal with simulated workspace records. Fully connected acceptance requires `PROVIDER_MODE=live`, the intended workspace's `AMBIGUOUS_API_KEY`, and matching `AMBIGUOUS_EXPECTED_USER_ID` and `AMBIGUOUS_EXPECTED_WORKSPACE_ID`. Verify the discovered identities before selecting the human and agent. A real-model run against fixture storage is not evidence of Ambiguous delivery.
 

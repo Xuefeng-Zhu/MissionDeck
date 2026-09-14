@@ -30,7 +30,7 @@ export function resolveModelConfig(env: ModelEnvironment = config): ResolvedMode
   const apiKeyEnv = bedrock ? undefined : openrouter ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY';
   const label = bedrock ? 'Amazon Bedrock' : openrouter ? 'OpenRouter' : 'OpenAI';
   const region = bedrock ? (env.AWS_REGION?.trim() || env.AWS_DEFAULT_REGION?.trim() || 'us-west-2') : undefined;
-  const model = bedrock ? (env.BEDROCK_MODEL_ID?.trim() || 'us.openai.gpt-5.6-luna') : openrouter ? env.OPENROUTER_MODEL : env.OPENAI_MODEL;
+  const model = bedrock ? (env.BEDROCK_MODEL_ID?.trim() || 'us.amazon.nova-2-lite-v1:0') : openrouter ? env.OPENROUTER_MODEL : env.OPENAI_MODEL;
   const setupRequired: string[] = [];
   if (env.MODEL_MODE !== 'live') setupRequired.push('Set MODEL_MODE=live to enable model requests. Fixture mode is currently selected.');
   if (!bedrock && !apiKey) setupRequired.push(`Set ${apiKeyEnv} on the server for the selected ${label} provider.`);

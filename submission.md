@@ -36,7 +36,7 @@ The browser is central to this interaction: the source, its provenance, and the 
 
 ### Engineering and AI
 
-The application uses React, TypeScript, Vite, and Chrome Manifest V3, with an authenticated Express backend and persistent PGlite/PostgreSQL storage. CopilotKit v2 supplies contextual conversation, frontend tools, and controlled review components. Structured planning and evidence assessment default to Amazon Bedrock with GPT-5.6 Luna; OpenRouter and direct OpenAI remain explicit alternatives. Model results pass schema and domain validation before they become proposals.
+The application uses React, TypeScript, Vite, and Chrome Manifest V3, with an authenticated Express backend and persistent PGlite/PostgreSQL storage. CopilotKit v2 supplies contextual conversation, frontend tools, and controlled review components. Structured planning and evidence assessment default to Amazon Bedrock with Amazon Nova 2 Lite; OpenRouter and direct OpenAI remain explicit alternatives. Model results pass schema and domain validation before they become proposals.
 
 The backend records approvals, pending operations, and provider outcomes. Task changes require approval and read-back; ambiguous outcomes remain visible for reconciliation. The workspace upgrade also provides artifact-plan review and versioned routine previews. Codex helped implement and test that upgrade, followed by local review and verification.
 

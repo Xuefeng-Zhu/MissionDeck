@@ -19,7 +19,7 @@ export interface BedrockStructuredRequest {
 export type BedrockStructuredInvoker = (selected: ResolvedModelConfig, request: BedrockStructuredRequest) => Promise<unknown>;
 
 /**
- * Bedrock Luna supports tools but not Bedrock's native structured-output format.
+ * Amazon Nova 2 Lite supports the tool-based structured-output path used here.
  * Strands represents the Zod schema as a final synthetic tool, validates its input,
  * and forces that tool on a second bounded turn if the model initially answers in prose.
  */

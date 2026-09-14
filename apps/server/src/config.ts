@@ -21,7 +21,7 @@ const envSchema = z.object({
   PUBLIC_DEMO_DAILY_MODEL_LIMIT:z.coerce.number().int().min(10).max(5000).default(200),
   MODEL_PROVIDER: z.enum(['bedrock', 'openrouter', 'openai']).default('bedrock'),
   AWS_REGION: z.preprocess(v=>v===''?undefined:v,z.string().trim().min(1).optional()), AWS_DEFAULT_REGION: z.preprocess(v=>v===''?undefined:v,z.string().trim().min(1).optional()),
-  BEDROCK_MODEL_ID: z.string().trim().min(1).default('us.openai.gpt-5.6-luna'),
+  BEDROCK_MODEL_ID: z.string().trim().min(1).default('us.amazon.nova-2-lite-v1:0'),
   OPENROUTER_API_KEY: z.string().optional(), OPENROUTER_MODEL: z.string().trim().min(1).default('openai/gpt-5.6-luna'),
   OPENAI_API_KEY: z.string().optional(), OPENAI_MODEL: z.string().default('gpt-5-mini'),
   AMBIGUOUS_API_KEY: z.string().optional(), AMBIGUOUS_EXPECTED_USER_ID: z.string().optional(), AMBIGUOUS_EXPECTED_WORKSPACE_ID: z.string().optional(),

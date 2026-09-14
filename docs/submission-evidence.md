@@ -16,11 +16,11 @@ This page records what each MissionDeck proof artifact establishes. It deliberat
 
 ## Final rebuild verification
 
-The Bedrock/Luna rebuild candidate was verified on September 14, 2026:
+The Bedrock/Nova 2 Lite rebuild candidate was verified on September 14, 2026:
 
-- 403 tests across 39 files passed, including the Bedrock transport, Luna model-adapter, bounded dispatch, URL handling, and hardened CLI session-reuse regressions;
+- 406 tests across 39 files passed, including the Bedrock transport, Nova model-adapter, bounded dispatch, URL handling, and hardened CLI session-reuse regressions;
 - full-repository TypeScript and the production extension/server build passed;
-- the exact working-tree Docker image built successfully, then returned `200` from `/health` in an isolated fixture/PGlite smoke test;
+- the prior container/fixture health smoke remains historical evidence; the Nova adapter tree is verified by the production build and awaits the hosted Render build;
 - `render.yaml` passed Render's published Blueprint schema validation;
 - the earlier rebuild's 6/6 adaptive browser scenarios and separate persisted execution scenario remain useful controlled/fixture evidence, but have not yet been rerun on the final public commit;
 - the real Strands SDK was exercised with a controlled model transport; and
@@ -43,12 +43,12 @@ Complete this table on the exact public submission commit.
 | Evidence | Required record | Status |
 | --- | --- | --- |
 | Public source | Default-branch commit SHA, public URL, MIT license detected | Bedrock/Render build is on public `main` and the MIT file is exposed; record the final SHA after any last submission patch |
-| Unit/integration | Command, test count, timestamp, exit 0 | Ready locally: 403/403 across 39 files on September 14, 2026 |
-| Production build | Command, timestamp, exit 0, warnings summarized | Ready locally: typecheck, extension/server build, exact working-tree Docker image, fixture `/health`, and Render YAML passed; the private Copilot bundle retains existing large-chunk warnings |
+| Unit/integration | Command, test count, timestamp, exit 0 | Ready locally: 406/406 across 39 files on September 14, 2026 |
+| Production build | Command, timestamp, exit 0, warnings summarized | Ready locally: typecheck and extension/server build passed; the hosted Render build is pending; the private Copilot bundle retains existing large-chunk warnings |
 | Browser | Scenario count, surfaces, viewport(s), timestamp | Earlier controlled/fixture evidence: 6/6 adaptive plus 1/1 persisted execution at 1440×1000 and in the native Chrome side panel; rerun on the final public commit TODO |
 | Real model | Vendor, model, timestamp, mission/run IDs, source revision, bounded counters | TODO or explicitly omit claim |
 | Live workspace | Actual task/document IDs, assignees, restricted sharing, content read-back timestamps | TODO or explicitly omit claim |
-| Public demo | URL, `/health` result, cold-start check, one complete judge flow | Exact image and fixture `/health` ready locally; public URL, live Bedrock call, and deployed judge flow TODO or leave optional field blank |
+| Public demo | URL, `/health` result, cold-start check, one complete judge flow | Public URL exists; exact Nova deployment, live Bedrock call, and deployed judge flow remain TODO |
 | Video | Public URL, runtime ≤ 5:00, playback checked signed out | TODO |
 | Architecture | `docs/architecture.png`, readable at upload preview size | Ready locally; upload TODO |
 

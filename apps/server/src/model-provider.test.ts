@@ -30,20 +30,21 @@ function mockTransport(reply:()=>Response=()=>Response.json(chatResponse())) {
 afterEach(()=>vi.unstubAllEnvs());
 
 describe('explicit model provider configuration',()=>{
-  it('selects Bedrock Luna with the AWS credential chain and exposes no credential fields',()=>{
-    const resolved=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock',AWS_REGION:'us-west-2',BEDROCK_MODEL_ID:'us.openai.gpt-5.6-luna'}));
-    expect(resolved).toMatchObject({provider:'bedrock',model:'us.openai.gpt-5.6-luna',region:'us-west-2',label:'Amazon Bedrock',authKind:'aws',enabled:true});
+  it('selects Bedrock Nova 2 Lite with the AWS credential chain and exposes no credential fields',()=>{
+    const resolved=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock',AWS_REGION:'us-west-2',BEDROCK_MODEL_ID:'us.amazon.nova-2-lite-v1:0'}));
+    expect(resolved).toMatchObject({provider:'bedrock',model:'us.amazon.nova-2-lite-v1:0',region:'us-west-2',label:'Amazon Bedrock',authKind:'aws',enabled:true});
     expect(resolved.apiKey).toBeUndefined();
     expect(resolved.apiKeyEnv).toBeUndefined();
     expect(resolved.baseURL).toBeUndefined();
     expect(createModelClient(resolved)).toBeNull();
-    expect(modelStatus(resolved)).toEqual({modelProvider:'bedrock',modelName:'us.openai.gpt-5.6-luna',modelEnabled:true,setupRequired:[]});
+    expect(modelStatus(resolved)).toEqual({modelProvider:'bedrock',modelName:'us.amazon.nova-2-lite-v1:0',modelEnabled:true,setupRequired:[]});
     expect(JSON.stringify(modelStatus(resolved))).not.toMatch(/credential|access.?key|secret/i);
   });
 
-  it('honors the standard AWS default-region variable before the Luna region default',()=>{
+  it('honors the standard AWS default-region variable before the Nova region default',()=>{
     const resolved=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock',AWS_REGION:undefined,AWS_DEFAULT_REGION:'us-east-1'}));
     expect(resolved.region).toBe('us-east-1');
+    expect(resolved.model).toBe('us.amazon.nova-2-lite-v1:0');
   });
 
   it('selects OpenRouter separately from the direct OpenAI key and exposes only safe status',()=>{
@@ -80,7 +81,7 @@ describe('explicit model provider configuration',()=>{
 
 describe('mocked structured Planner transport',()=>{
   it('routes Bedrock planning through the bounded Strands structured-output adapter',async()=>{
-    const selected=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock',AWS_REGION:'us-west-2',BEDROCK_MODEL_ID:'us.openai.gpt-5.6-luna'}));
+    const selected=resolveModelConfig(environment({MODEL_PROVIDER:'bedrock',AWS_REGION:'us-west-2',BEDROCK_MODEL_ID:'us.amazon.nova-2-lite-v1:0'}));
     const invoker=vi.fn(async(_selected,request)=>{
       expect(_selected).toBe(selected);
       expect(request).toMatchObject({name:'requirement_assessment',maxTokens:6000});

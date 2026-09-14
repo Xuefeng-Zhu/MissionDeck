@@ -3,7 +3,7 @@ import { modelProviderLabel, modelSetupHint, planningStatus } from './model-stat
 
 describe('model status copy', () => {
   it('labels Bedrock and describes role-based server authentication', () => {
-    const config = { modelProvider: 'bedrock' as const, modelMode: 'live' as const, modelEnabled: false, modelName: 'us.openai.gpt-5.6-luna' };
+    const config = { modelProvider: 'bedrock' as const, modelMode: 'live' as const, modelEnabled: false, modelName: 'us.amazon.nova-2-lite-v1:0' };
     expect(modelProviderLabel(config)).toBe('Amazon Bedrock');
     expect(planningStatus(config)).toBe('Amazon Bedrock setup required');
     expect(planningStatus({ ...config, modelEnabled: true })).toBe('Amazon Bedrock live mode configured');

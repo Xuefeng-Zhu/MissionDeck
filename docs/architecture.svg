@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">MissionDeck release-readiness agent architecture</title>
-  <desc id="desc">Reviewed sources enter a durable MissionDeck coordinator. A Strands graph extracts evidence, runs readiness and risk analysis in parallel, and synthesizes a cited brief. A human records a Decision Receipt before a fresh launch-pack invocation. Documents are written and read back before human outcome verification.</desc>
+  <desc id="desc">Reviewed sources enter a durable MissionDeck coordinator. Strands agents use Amazon Bedrock Converse with Nova 2 Lite to extract evidence, run readiness and risk analysis in parallel, and synthesize a cited brief. A human records a Decision Receipt before a fresh launch-pack invocation. Documents are written and read back before human outcome verification.</desc>
   <defs>
     <linearGradient id="paper" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="#fbf6e9"/>
@@ -102,8 +102,8 @@
   </g>
   <circle cx="816" cy="265" r="17" fill="#d85d32"/>
   <text x="816" y="270" text-anchor="middle" class="sans number">3</text>
-  <text x="846" y="272" class="sans eyebrow">STRANDS ANALYSIS GRAPH</text>
-  <text x="1218" y="272" class="sans small" fill="#6b817f">Read-only, revision-scoped tools</text>
+  <text x="846" y="272" class="sans eyebrow">STRANDS AGENTS · AMAZON BEDROCK</text>
+  <text x="1242" y="272" class="sans small" fill="#6b817f">Nova 2 Lite · Converse tools</text>
 
   <rect x="816" y="319" width="170" height="104" rx="16" fill="#f6eadc" stroke="#d8bda7"/>
   <text x="901" y="352" text-anchor="middle" class="sans box-title">Evidence</text>

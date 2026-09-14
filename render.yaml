@@ -23,7 +23,7 @@ services:
       - key: AWS_REGION
         value: us-west-2
       - key: BEDROCK_MODEL_ID
-        value: us.openai.gpt-5.6-luna
+        value: us.amazon.nova-2-lite-v1:0
       # The free Blueprint path uses a least-privileged static IAM principal.
       # On Render plans with OIDC, prefer AWS_ROLE_ARN plus the automatically
       # supplied web-identity token instead of long-lived access keys.
