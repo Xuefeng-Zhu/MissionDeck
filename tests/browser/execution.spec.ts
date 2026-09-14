@@ -49,21 +49,24 @@ test('sample mission runs through real fixture storage, human review, final veri
   page.on('console',entry=>{if(entry.type()==='error')errors.push(entry.text());});
 
   await page.goto('/');
-  await expect(page).toHaveTitle('Mission Control');
-  await expect(page.getByText('Mission Control',{exact:true}).first()).toBeVisible();
+  await expect(page).toHaveTitle('MissionDeck');
+  await page.waitForLoadState('networkidle');
+  expect(errors,'The execution app must render without page or console errors.').toEqual([]);
+  await expect(page.getByText('MissionDeck',{exact:true}).first()).toBeVisible();
   await page.getByRole('button',{name:'Settings',exact:true}).first().click();
   await page.getByLabel('Pairing code',{exact:true}).fill(fixturePairingCode);
   await page.getByRole('button',{name:'Pair workspace',exact:true}).click();
   await expect(page.getByRole('button',{name:'Pair workspace',exact:true})).not.toBeVisible();
 
-  await page.getByRole('button',{name:'New mission',exact:true}).click();
-  await page.getByRole('button',{name:'Try a sample mission',exact:true}).click();
-  await expect(page.getByLabel('Mission',{exact:true})).toHaveValue(/Prepare a launch brief/);
+  await page.getByRole('button',{name:'New review',exact:true}).click();
+  await page.getByText('Custom mission · beta',{exact:true}).click();
+  await page.locator('input[value="generic"]').check();
+  await expect(page.getByLabel('Review outcome',{exact:true})).toHaveValue(/Prepare a launch brief/);
   await expect(page.getByLabel('Source material and context',{exact:true})).toHaveValue(/Fictional demo sources/);
   await expect(page.getByLabel('Human reviewer',{exact:true})).not.toHaveValue('');
   await expect(page.getByLabel('Working agent',{exact:true})).not.toHaveValue('');
   await page.screenshot({path:testInfo.outputPath('execution-start-desktop.png'),fullPage:true});
-  await page.getByRole('button',{name:'Start mission',exact:true}).click();
+  await page.getByRole('button',{name:'Start custom mission',exact:true}).click();
   await expect(page.locator('.execution-task-list > li')).toHaveCount(3,{timeout:60_000});
 
   const reviewTask=page.locator('.execution-task[data-state="waiting_human"]');
@@ -118,7 +121,7 @@ test('sample mission runs through real fixture storage, human review, final veri
   expect(new Set(completed.artifacts.map(artifact=>artifact.id)).size).toBe(6);
   await expect(savedArtifacts.locator(':scope > .execution-artifact')).toHaveCount(5);
   await expect(page.locator('[aria-label="Saved mission brief"] > .execution-artifact')).toHaveCount(1);
-  await expect(page.locator('.mission-header')).toContainText('No deadline set');
+  await expect(page.locator('.mission-header')).toContainText('A durable release review');
   await expect(page.locator('.mission-header .badge')).toHaveCount(0);
   await expect(page.locator('.mission-header')).not.toContainText('0 of');
   await page.screenshot({path:testInfo.outputPath('execution-completed-desktop.png'),fullPage:true});

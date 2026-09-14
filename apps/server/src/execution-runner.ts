@@ -4,6 +4,7 @@ import { zodResponseFormat, zodTextFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import { HttpError } from './errors.js';
 import { createModelClient, resolveModelConfig, type ResolvedModelConfig } from './model-provider.js';
+import type { AdaptiveSource, AdaptiveAnalysis, AdaptiveDecision, LaunchPack, AdaptiveActivity, AdaptiveResult } from '@mission/domain';
 
 export interface ExecutionPlanTask {
   key: string;
@@ -25,9 +26,21 @@ export interface ExecutionTaskInput {
   context: string;
   task: { id: string; title: string; description: string; completionCriteria: string[] };
   inputs: Array<{ title: string; content: string }>;
+  adaptive?: {
+    stage: 'analysis' | 'launch_pack'; sourceRevision: number; sources: AdaptiveSource[];
+    analysis?: AdaptiveAnalysis; decision?: AdaptiveDecision; previousPack?: LaunchPack;
+    artifacts: Array<{ id: string; title: string; content: string }>;
+    readSource: (id: string) => Promise<string>;
+    readArtifact: (id: string) => Promise<string>;
+    consume: (kind: 'model' | 'tool') => Promise<void>;
+    activity: (event: Omit<AdaptiveActivity, 'id' | 'runId' | 'sourceRevision' | 'at'>) => Promise<void>;
+  };
 }
-export interface ExecutionOutput { title: string; content: string; summary: string; blockedReason?: string }
+export interface ExecutionOutput { title: string; content: string; summary: string; blockedReason?: string; adaptiveResult?: AdaptiveResult }
 export interface ExecutionRunner {
+  readonly engine?: 'direct' | 'strands';
+  readonly modelProvider?: string;
+  readonly modelName?: string;
   readonly mode: 'live' | 'fixture';
   readonly setupRequired?: string[];
   plan(input: ExecutionPlanInput): Promise<ExecutionPlan>;

@@ -43,6 +43,17 @@ export function sanitizeSourceUrl(raw: string | null | undefined): string | null
   }
 }
 
+/** True when URL sanitization would do more than benign WHATWG canonicalization. */
+export function sourceUrlRequiresSanitization(raw: string): boolean {
+  const sanitized = sanitizeSourceUrl(raw);
+  if (!sanitized) return true;
+  try {
+    return sanitized !== new URL(raw).toString();
+  } catch {
+    return true;
+  }
+}
+
 /** Syntactic screening only. A server must also resolve DNS and recheck every redirect. */
 export function isPublicResearchUrl(raw: string): boolean {
   try {
@@ -69,7 +80,7 @@ export function redactSensitiveText(raw: string): string {
     .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi, '$1[REDACTED]@')
     .replace(/\b(password|passwd|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|client[_ -]?secret|session[_ -]?token)\s*[:=]\s*["']?[^\s"',;]+["']?/gi, '$1=[REDACTED]')
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED TOKEN]')
-    .replace(/https?:\/\/[^\s<>"']+/g, (url) => sanitizeSourceUrl(url) ?? '[REMOVED URL]');
+    .replace(/https?:\/\/[^\s<>"']+/g, (url) => sourceUrlRequiresSanitization(url) ? sanitizeSourceUrl(url) ?? '[REMOVED URL]' : url);
 }
 
 export interface CaptureInput {

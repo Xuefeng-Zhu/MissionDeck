@@ -24,7 +24,7 @@ test('complete fixture mission loop, controlled edits, duplicate evidence and pe
   test.skip(config.providerMode!=='fixture'||config.modelMode!=='fixture','Browser fixture test never writes to a live provider.');
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   await pair(page);
-  await page.getByRole('button',{name:'New mission',exact:true}).click();
+  await page.getByRole('button',{name:'New review',exact:true}).click();
   await page.getByRole('button',{name:'Use planning-only setup',exact:true}).click();
   // Create through the editable contract; fixture-specific criteria keep the documented six-task scenario.
   await page.getByLabel('Outcome',{exact:true}).fill('Prepare our hackathon project for submission');
@@ -50,14 +50,14 @@ test('complete fixture mission loop, controlled edits, duplicate evidence and pe
   await page.getByLabel('Excerpt',{exact:true}).fill('A two-minute demo video is required. The video must show the complete project journey.');
   await page.getByLabel('Title',{exact:true}).fill('Fixture hackathon requirements');
   await page.getByLabel('Source URL',{exact:true}).fill('http://127.0.0.1:4318/fixtures/requirements.html?token=must-not-be-retained#private');
-  await page.getByRole('button',{name:'Send to Mission Control',exact:true}).click();
+  await page.getByRole('button',{name:'Send to MissionDeck',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Add the required demo video'})).toBeVisible();
   await page.getByRole('button',{name:'Approve changes',exact:true}).click();
   await expect(page.locator('.task-list > li')).toHaveCount(7);
   await page.getByRole('button',{name:'Capture page',exact:true}).click();
   await page.getByLabel('Excerpt',{exact:true}).fill('A two-minute demo video is required. The video must show the complete project journey.');
   await page.getByLabel('Title',{exact:true}).fill('Fixture hackathon requirements');
-  await page.getByRole('button',{name:'Send to Mission Control',exact:true}).click();
+  await page.getByRole('button',{name:'Send to MissionDeck',exact:true}).click();
   await expect(page.getByText('This exact evidence is already in your mission.',{exact:false})).toBeVisible();
   await expect(page.locator('.task-list > li')).toHaveCount(7);
   await page.getByRole('button',{name:'Finish the core implementation',exact:true}).click();

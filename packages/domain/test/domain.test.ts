@@ -253,6 +253,12 @@ describe('capture privacy and duplicate controls', () => {
     expect(redacted).toContain('[REDACTED');
   });
 
+  it('preserves benign URL spelling while still sanitizing material URL changes', () => {
+    expect(redactSensitiveText('See https://example.com for details.')).toBe('See https://example.com for details.');
+    expect(redactSensitiveText('See https://example.com/report?view=summary for details.')).toBe('See https://example.com/report?view=summary for details.');
+    expect(redactSensitiveText('See https://example.com/report?token=synthetic-token#private for details.')).toBe('See https://example.com/report for details.');
+  });
+
   it('limits retained excerpts and labels truncation and fixture provenance', () => {
     const capture = evidence('x'.repeat(CAPTURE_CHARACTER_LIMIT + 50));
     expect(capture.excerpt).toHaveLength(CAPTURE_CHARACTER_LIMIT);

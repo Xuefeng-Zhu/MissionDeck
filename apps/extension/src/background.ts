@@ -37,12 +37,12 @@ chrome.runtime.onMessage.addListener((message:unknown,sender,sendResponse)=>{
   void (async()=>{
     try {
       const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
-      if (tab?.id===undefined) throw new Error('No active tab. Open a web page and click the Mission Control toolbar icon.');
+      if (tab?.id===undefined) throw new Error('No active tab. Open a web page and click the MissionDeck toolbar icon.');
       if (tab.url?.startsWith(chrome.runtime.getURL(''))) throw new Error('Open the side panel on the web page you want to capture, or add a manual note here.');
       const data=await captureAuthorizedTab(tab.id);
       if (!data) throw new Error('No readable text found. Add a manual note.');
       sendResponse({capture:{...data,contentHash:await captureTextHash(data.text),sourceUrl:safeSourceUrl(data.sourceUrl),capturedAt:new Date().toISOString(),expiresAt:Date.now()+INBOX_TTL}});
-    } catch(error) { sendResponse({error:'Page access unavailable. Click the Mission Control toolbar icon on this tab, then capture again. Browser pages, extension-store pages, and some documents require manual text. '+(error instanceof Error?error.message:'')}); }
+    } catch(error) { sendResponse({error:'Page access unavailable. Click the MissionDeck toolbar icon on this tab, then capture again. Browser pages, extension-store pages, and some documents require manual text. '+(error instanceof Error?error.message:'')}); }
   })();
   return true;
 });

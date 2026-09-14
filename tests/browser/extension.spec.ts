@@ -16,7 +16,7 @@ test('unpacked MV3 service worker, trusted session and unsupported-page fallback
     const extensionId=new URL(worker.url()).host;
     expect(extensionId).toMatch(/^[a-p]{32}$/);
     const page=await context.newPage();await page.goto(`chrome-extension://${extensionId}/index.html`);
-    await expect(page.getByText('Mission Control',{exact:true}).first()).toBeVisible();
+    await expect(page.getByText('MissionDeck',{exact:true}).first()).toBeVisible();
     await page.getByRole('button',{name:'Settings',exact:true}).first().click();
     const code='browser-fixture-pairing-code-only';
     await page.getByLabel('Pairing code',{exact:true}).fill(code);await page.getByRole('button',{name:'Pair workspace',exact:true}).click();

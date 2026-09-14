@@ -2,10 +2,10 @@ import express,{type Request,type Response,type NextFunction} from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { createProposal,proposalOperationSchema,taskSchema,criterionSchema,validateProposal,type Criterion,type Mission } from '@mission/domain';
+import { createProposal,proposalOperationSchema,taskSchema,criterionSchema,validateProposal,type Criterion,type Mission,type MissionExecution } from '@mission/domain';
 import { config,repoRoot } from './config.js';
 import { type Database } from './database.js';
-import { type AuthenticatedRequest,authMiddleware,equalSecret,issueSession,pairingCode } from './auth.js';
+import { type AuthenticatedRequest,authMiddleware,equalSecret,issueDemoSession,issueSession,pairingCode } from './auth.js';
 import { HttpError } from './errors.js';
 import { MissionService } from './service.js';
 import { Planner,SAFETY_PROMPT } from './model.js';
@@ -14,9 +14,10 @@ import { createRuntimeModel } from './runtime-model.js';
 import {createRoutinesRouter} from './routines-router.js';
 import { createArtifactRouter } from './artifact-router.js';
 import { createContextRouter } from './context-router.js';
-import { ProviderError } from './providers/index.js';
+import { fingerprint, ProviderError } from './providers/index.js';
 import { createExecutionRouter, createExecutionService } from './execution-router.js';
 import type { ExecutionService } from './execution-service.js';
+import { purgeDemoScope } from './demo-cleanup.js';
 
 const line=z.string().trim().min(1).max(500);
 const contractInput=z.object({goal:line,deadline:z.string().datetime({offset:true}),timezone:line,criteria:z.array(z.object({id:z.string().optional(),title:line,required:z.boolean(),verificationMethod:line}).passthrough()).min(1).max(30),outcome:line.optional(),constraints:z.array(line).optional(),forbiddenActions:z.array(line).optional(),approvedCapabilities:z.array(line).optional(),assumptions:z.array(line).optional(),questions:z.array(line).optional(),unresolvedQuestions:z.array(line).optional(),confirmed:z.boolean().optional(),humanOwner:z.string().optional()});
@@ -24,51 +25,124 @@ const scope=(req:Request)=>(req as AuthenticatedRequest).principal;
 const param=(req:Request,name:string)=>z.string().max(160).regex(/^[\w.:-]+$/).parse(req.params[name]);
 const reply=(res:Response,m:Mission,service:MissionService)=>res.json({mission:m,health:service.health(m)});
 
-export async function createApp(service:MissionService,options?:{pairingCode?:string;enableCopilot?:boolean;executionService?:ExecutionService}) {
+type AppRuntime={deploymentMode:'local'|'hosted';publicDemoEnabled:boolean;publicDemoMaxMissions:number;publicDemoMaxConcurrent:number;publicDemoSessionLimit:number;publicDemoMaxSourceRevisions:number};
+export async function createApp(service:MissionService,options?:{pairingCode?:string;enableCopilot?:boolean;executionService?:ExecutionService;serveWeb?:boolean;runtime?:Partial<AppRuntime>}) {
   const app=express();const db=service.db;const code=options?.pairingCode??await pairingCode();const planner=new Planner();const selectedModel=resolveModelConfig();
+  const runtime:AppRuntime={deploymentMode:config.DEPLOYMENT_MODE,publicDemoEnabled:config.PUBLIC_DEMO_ENABLED,publicDemoMaxMissions:config.PUBLIC_DEMO_MAX_MISSIONS,publicDemoMaxConcurrent:config.PUBLIC_DEMO_MAX_CONCURRENT,publicDemoSessionLimit:config.PUBLIC_DEMO_SESSION_LIMIT,publicDemoMaxSourceRevisions:config.PUBLIC_DEMO_MAX_SOURCE_REVISIONS,...options?.runtime};
+  const executionService=options?.executionService??createExecutionService(db);
+  executionService.configurePublicDemoLimits({maxMissions:runtime.publicDemoMaxMissions,maxConcurrent:runtime.publicDemoMaxConcurrent,maxSourceRevisions:runtime.publicDemoMaxSourceRevisions});
+  if(runtime.deploymentMode==='hosted')app.set('trust proxy',1);
   const pairedOrigins=new Set(config.origins);const origins=await db.query<{origin:string}>('SELECT DISTINCT origin FROM sessions WHERE expires_at>now()');origins.rows.forEach(r=>pairedOrigins.add(r.origin));
   const attempts=new Map<string,{count:number;reset:number}>();
+  const demoAttempts=new Map<string,{count:number;reset:number}>();
+  const consumeAttempt=(buckets:Map<string,{count:number;reset:number}>,key:string,limit:number,windowMs:number,limitMessage='Too many attempts. Wait before trying again.')=>{
+    const now=Date.now();let bucket=buckets.get(key);
+    if(bucket&&bucket.reset<=now){buckets.delete(key);bucket=undefined;}
+    if(!bucket){
+      if(buckets.size>=4096)for(const [candidate,value] of buckets)if(value.reset<=now)buckets.delete(candidate);
+      if(buckets.size>=4096)throw new HttpError(503,'Session protection is at capacity. Try again later.','rate_limit_capacity');
+      bucket={count:0,reset:now+windowMs};buckets.set(key,bucket);
+    }
+    bucket.count++;if(bucket.count>limit)throw new HttpError(429,limitMessage,'rate_limit');
+  };
   app.disable('x-powered-by');
   app.use((req,res,next)=>{
     const hostname=(req.headers.host??'').split(':')[0];
-    if(!['127.0.0.1','localhost','['].includes(hostname)) {res.status(403).json({error:'This local server accepts only loopback hosts.'});return;}
+    if(runtime.deploymentMode==='local'&&!['127.0.0.1','localhost','['].includes(hostname)) {res.status(403).json({error:'This local server accepts only loopback hosts.'});return;}
     const origin=req.headers.origin;
-    const pairingPath=req.path==='/api/pair'||req.path==='/api/config';
-    const allowed=origin&&(pairedOrigins.has(origin)||(pairingPath&&/^chrome-extension:\/\/[a-p]{32}$/.test(origin)));
-    if(origin&&!allowed){res.status(403).json({error:'This origin is not paired with Mission Control.'});return;}
+    const requestOrigin=`${req.protocol}://${req.headers.host}`;
+    const pairingPath=req.path==='/api/pair'||req.path==='/api/config'||req.path==='/api/demo/session';
+    const sameOrigin=runtime.deploymentMode==='hosted'&&origin===requestOrigin;
+    const allowed=origin&&(sameOrigin||pairedOrigins.has(origin)||(pairingPath&&/^chrome-extension:\/\/[a-p]{32}$/.test(origin)));
+    if(origin&&!allowed){res.status(403).json({error:'This origin is not paired with MissionDeck.'});return;}
     if(allowed){res.setHeader('Access-Control-Allow-Origin',origin!);res.setHeader('Vary','Origin');res.setHeader('Access-Control-Allow-Headers','Content-Type,Authorization');res.setHeader('Access-Control-Allow-Methods','GET,POST,PATCH,DELETE,OPTIONS');}
     res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
+    if(runtime.deploymentMode==='hosted'){
+      res.setHeader('Content-Security-Policy',"default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'");
+      res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
+    }
     if(req.method==='OPTIONS'){res.sendStatus(204);return;}next();
   });
   app.use(express.json({limit:'256kb'}));
-  app.get('/health',(_req,res)=>res.json({status:'ok',service:'mission-control'}));
+  app.get('/health',async(_req,res)=>{try{await db.query('SELECT 1 AS ready');res.json({status:'ok',service:'missiondeck',database:'ready'});}catch{res.status(503).json({status:'unavailable',service:'missiondeck',database:'unavailable'});}});
   const missing=[...(config.PROVIDER_MODE==='live'&&!config.AMBIGUOUS_API_KEY?['Set AMBIGUOUS_API_KEY on the server.']:[]),...(config.PROVIDER_MODE==='live'&&(!config.AMBIGUOUS_EXPECTED_USER_ID||!config.AMBIGUOUS_EXPECTED_WORKSPACE_ID)?['Set AMBIGUOUS_EXPECTED_USER_ID and AMBIGUOUS_EXPECTED_WORKSPACE_ID after inspecting the connected identity.']:[]),...selectedModel.setupRequired];
-  app.get('/api/config',(_req,res)=>res.json({workspaceUpgradeEnabled:config.WORKSPACE_UPGRADE_ENABLED,providerMode:config.PROVIDER_MODE,modelMode:config.MODEL_MODE,mode:config.PROVIDER_MODE,databaseMode:config.DATABASE_MODE,...modelStatus(selectedModel),liveReady:false,missing,setupRequired:missing,identity:null,researchEnabled:false,demoNow:null,fixtureNotice:'Fixture provider records and deterministic planning suggestions are local simulation. No sponsor calls are made in fixture mode.'}));
+  app.get('/api/config',(_req,res)=>res.json({workspaceUpgradeEnabled:config.WORKSPACE_UPGRADE_ENABLED,providerMode:config.PROVIDER_MODE,modelMode:config.MODEL_MODE,mode:config.PROVIDER_MODE,databaseMode:config.DATABASE_MODE,deploymentMode:runtime.deploymentMode,publicDemoEnabled:runtime.publicDemoEnabled,publicDemoMaxSourceRevisions:runtime.publicDemoMaxSourceRevisions,...modelStatus(selectedModel),liveReady:false,missing,setupRequired:missing,identity:null,researchEnabled:false,demoNow:null,fixtureNotice:'Fixture provider records are an explicit simulation. Model-backed analysis is labeled separately and no sponsor workspace calls are made in fixture mode.'}));
   app.get('/privacy',(_req,res)=>res.type('text/plain').sendFile(resolve(repoRoot,'docs/privacy.md')));
+  app.post('/api/demo/session',async(req,res)=>{
+    if(runtime.deploymentMode!=='hosted'||!runtime.publicDemoEnabled){res.status(404).json({error:'Public demo sessions are disabled.'});return;}
+    z.object({}).strict().parse(req.body??{});
+    const key=req.ip||req.socket.remoteAddress||'unknown';consumeAttempt(demoAttempts,key,runtime.publicDemoSessionLimit,3600_000,'This network has reached the demo-session limit. Try again in about an hour.');
+    const origin=req.headers.origin??`${req.protocol}://${req.headers.host}`;const token=await issueDemoSession(db,origin);pairedOrigins.add(origin);res.status(201).json({token,expiresIn:4*3600,scope:'isolated-demo'});
+  });
   app.post('/api/pair',async(req,res)=>{
-    const origin=req.headers.origin??'local-cli';const key=req.socket.remoteAddress??'local';const current=attempts.get(key);const bucket=current&&current.reset>Date.now()?current:{count:0,reset:Date.now()+60_000};attempts.set(key,bucket);
-    if(++bucket.count>10)throw new HttpError(429,'Too many pairing attempts. Wait one minute.');
+    const origin=req.headers.origin??'local-cli';const key=req.socket.remoteAddress??'local';consumeAttempt(attempts,key,10,60_000);
     const body=z.object({code:z.string().min(1).max(512)}).strict().parse(req.body);
     if(!equalSecret(body.code.trim(),code))throw new HttpError(401,'Pairing code is incorrect.','unauthorized');
-    const token=await issueSession(db,origin);pairedOrigins.add(origin);res.json({token,expiresIn:86400});
+    const publicDemoSession=runtime.deploymentMode==='hosted'&&runtime.publicDemoEnabled;
+    const token=publicDemoSession?await issueDemoSession(db,origin):await issueSession(db,origin);pairedOrigins.add(origin);res.json({token,expiresIn:publicDemoSession?4*3600:86400});
   });
   app.use('/api',authMiddleware(db));
-  const executionService=options?.executionService??createExecutionService(db);
+  app.use('/api',async(req,res,next)=>{
+    if(!scope(req).ownerId.startsWith('demo-user:')){next();return;}
+    if(!runtime.publicDemoEnabled){
+      const principal=scope(req);
+      await executionService.abortScope(principal);
+      await db.transaction(async q=>{await q('DELETE FROM sessions WHERE token_hash=$1',[principal.tokenHash]);await purgeDemoScope(q,principal);});
+      res.status(401).json({error:'This anonymous demo session is no longer accepted. Use the current sign-in or pairing flow.',code:'unauthorized'});return;
+    }
+    const sourceMatch=/^\/missions\/([\w.:-]+)\/execution\/sources$/.exec(req.path);
+    const decisionPath=/^\/missions\/[\w.:-]+\/execution\/decision$/.test(req.path);
+    const controlPath=/^\/missions\/[\w.:-]+\/execution\/control$/.test(req.path);
+    const startPath=req.path==='/execution/missions';
+    if(startPath&&req.body?.template!=='adaptive_launch'){res.status(403).json({error:'The public demo starts only the bounded Harbor launch review.',code:'demo_scope'});return;}
+    if(controlPath&&!['complete','cancel'].includes(req.body?.action)){res.status(403).json({error:'The public demo permits only completion or cancellation controls.',code:'demo_scope'});return;}
+    if(sourceMatch){
+      const found=await db.query<{data:MissionExecution}>("SELECT data FROM upgrade_records WHERE kind='mission_execution' AND mission_id=$1 AND owner_id=$2 AND workspace_id=$3",[sourceMatch[1]!,scope(req).ownerId,scope(req).workspaceId]);
+      const adaptive=found.rows[0]?.data.adaptive;
+      if(!adaptive){res.status(404).json({error:'Adaptive launch review not found.',code:'not_found'});return;}
+      const parsedRequestId=z.string().uuid().safeParse(req.body?.requestId);
+      let replay=false;
+      if(parsedRequestId.success){
+        const requestKey=`adaptive-request:${fingerprint({id:sourceMatch[1],action:'sources',requestId:parsedRequestId.data})}`;
+        replay=(await db.query('SELECT id FROM upgrade_records WHERE id=$1 AND kind=$2 AND owner_id=$3 AND workspace_id=$4',[requestKey,'adaptive_request',scope(req).ownerId,scope(req).workspaceId])).rows.length>0;
+      }
+      // Let the execution service validate an already-recorded request hash. Exact
+      // transport retries remain safe; changed payloads with the same ID still 409.
+      if(!replay&&adaptive.sourceRevision>=runtime.publicDemoMaxSourceRevisions){res.status(429).json({error:'This demo has reached its source revision limit. Review the current Decision Receipt instead.',code:'demo_quota'});return;}
+    }
+    const allowedWrite=req.method==='POST'&&(startPath||req.path==='/session/revoke'||!!sourceMatch||decisionPath||controlPath);
+    if(req.method==='GET'||allowedWrite){next();return;}
+    res.status(403).json({error:'The public demo session is limited to a bounded launch review. Evidence uploads, general planning, retries, reassignment, and integration writes are disabled.',code:'demo_scope'});
+  });
+  app.use('/api/execution/missions',async(req,res,next)=>{
+    if(req.method!=='POST'||!runtime.publicDemoEnabled||!scope(req).ownerId.startsWith('demo-user:')){next();return;}
+    const requestId=typeof req.body?.requestId==='string'&&req.body.requestId.length<=100?req.body.requestId:null;
+    if(requestId){
+      const replay=await db.query("SELECT id FROM upgrade_records WHERE kind='mission_execution' AND owner_id=$1 AND workspace_id=$2 AND data->>'requestId'=$3 LIMIT 1",[scope(req).ownerId,scope(req).workspaceId,requestId]);
+      if(replay.rows.length){next();return;}
+    }
+    const own=await db.query('SELECT id FROM missions WHERE owner_id=$1 AND workspace_id=$2',[scope(req).ownerId,scope(req).workspaceId]);
+    if(own.rows.length>=runtime.publicDemoMaxMissions){res.status(429).json({error:'This isolated demo session has used its mission allowance. Start a new session later to protect the shared demo budget.',code:'demo_quota'});return;}
+    next();
+  });
   app.locals.executionService=executionService;
   app.use('/api',createExecutionRouter(executionService));
   app.use('/api',async(req,_res,next)=>{
     const match=/^\/missions\/([\w.:-]+)(?:\/|$)/.exec(req.path);
-    if(req.method!=='GET'&&match&&await executionService.managed(match[1]!,scope(req)))throw new HttpError(409,'This mission is managed by the execution worker. Use its task, review, and mission controls.');
+    if(req.method!=='GET'&&match&&await executionService.managed(match[1]!,scope(req))){
+      const evidenceOnly=req.method==='POST' && req.path===`/missions/${match[1]}/evidence` && !!(await executionService.get(match[1]!,scope(req)))?.adaptive;
+      if(!evidenceOnly)throw new HttpError(409,'This mission is managed by the execution worker. Use its task, review, and mission controls.');
+    }
     next();
   });
   if(config.WORKSPACE_UPGRADE_ENABLED){app.use(createContextRouter(service));app.use('/api',createArtifactRouter(service));app.use(createRoutinesRouter(service));}
-  app.post('/api/session/revoke',async(req,res)=>{await db.transaction(async q=>{await q('DELETE FROM sessions WHERE token_hash=$1',[scope(req).tokenHash]);await q('DELETE FROM temporary_context WHERE owner_id=$1 AND workspace_id=$2',[scope(req).ownerId,scope(req).workspaceId]);});res.json({revoked:true});});
+  app.post('/api/session/revoke',async(req,res)=>{const principal=scope(req);await executionService.abortScope(principal);await db.transaction(async q=>{await q('DELETE FROM sessions WHERE token_hash=$1',[principal.tokenHash]);if(principal.ownerId.startsWith('demo-user:'))await purgeDemoScope(q,principal);else await q('DELETE FROM temporary_context WHERE owner_id=$1 AND workspace_id=$2',[principal.ownerId,principal.workspaceId]);});res.json({revoked:true});});
   app.get('/api/integrations/check',async(_req,res)=>{const capabilities=await service.provider.discover();let identity=null;try{identity=await service.provider.identity();}catch{}res.json({capabilities,identity,liveReady:service.provider.mode==='live'&&capabilities.writesEnabled,setupRequired:capabilities.setupRequired});});
   app.post('/api/integrations/smoke',async(req,res)=>{
     const m=await service.create(scope(req));
     m.goal='Verify the Ambiguous test-workspace connection';m.contract.outcome='Read back one explicitly approved task, then approve and verify a supported title update.';m.contract.confirmed=true;m.contract.assumptions=['This is a disposable integration smoke task in the user-controlled test workspace.'];
     m.criteria=[criterionSchema.parse({id:`${m.id}-smoke`,title:'Task creation, read-back and supported update verified',required:true,verificationMethod:'Inspect returned provider ID after create/read and a title update/read.',verificationState:'needs_verification',evidenceIds:[]})];
-    const task=taskSchema.parse({id:`${m.id}-smoke-task`,title:'Mission Control integration smoke test',description:'User-approved integration test task. Do not perform external submission or communication.',status:'todo',executor:'human',ownerId:m.ownerId,dependencies:[],criterionIds:[m.criteria[0]!.id],remainingMinutes:5,optional:false,deferred:false,completionEvidence:'Successful create, ID-based read-back, then a supported title update and another read-back.',provider:null});
+    const task=taskSchema.parse({id:`${m.id}-smoke-task`,title:'MissionDeck integration smoke test',description:'User-approved integration test task. Do not perform external submission or communication.',status:'todo',executor:'human',ownerId:m.ownerId,dependencies:[],criterionIds:[m.criteria[0]!.id],remainingMinutes:5,optional:false,deferred:false,completionEvidence:'Successful create, ID-based read-back, then a supported title update and another read-back.',provider:null});
     const proposal=createProposal(m,{id:randomUUID(),kind:'plan',title:'Approve one integration test task',operations:[{type:'add_task',task}],rationale:'First verify one task in the connected test workspace. After successful read-back, propose a title edit from task details and approve it. Bulk task creation remains gated until this create/read/update path succeeds.'},service.now());
     m.proposals.push(proposal);await db.transaction(q=>db.save(m,q));res.json({mission:m,proposal});
   });
@@ -99,7 +173,9 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
   });
   app.post('/api/missions/:id/evidence',async(req,res)=>{
     const body=z.object({text:z.string().max(20000).optional(),excerpt:z.string().max(20000).optional(),title:z.string().min(1).max(500),sourceUrl:z.string().max(2000).nullable().optional(),capturedAt:z.string().datetime({offset:true}),captureMethod:z.enum(['selection','page','manual']),fixture:z.boolean().optional(),truncated:z.boolean().optional(),id:z.string().optional(),contentHash:z.string().optional(),acceptedAt:z.string().optional(),retention:z.string().optional()}).strict().parse(req.body);
-    const id=param(req,'id');const result=await service.capture(id,body,scope(req),config.MODEL_MODE==='fixture');
+    const id=param(req,'id');
+    if(await executionService.managed(id,scope(req))){const result=await service.capture(id,body,scope(req),false);res.json({...result,summary:'Reviewed excerpt saved. Import it in the source editor to include it in a new analysis.'});return;}
+    const result=await service.capture(id,body,scope(req),config.MODEL_MODE==='fixture');
     if(config.MODEL_MODE==='live'&&!result.duplicate&&result.evidence&&!result.possibleDuplicateEvidenceIds?.length){const proposal=await planner.assessEvidence(result.mission,result.evidence,service.now());if(proposal){result.mission=await service.saveProposal(id,scope(req),proposal);result.proposal=proposal;}}
     res.json(result);
   });
@@ -131,14 +207,19 @@ export async function createApp(service:MissionService,options?:{pairingCode?:st
   app.delete('/api/missions/:id',async(req,res)=>{const id=param(req,'id');await service.get(id,scope(req));await db.transaction(async q=>{const pending=await q("SELECT id FROM outbox WHERE mission_id=$1 AND state IN ('pending','running')",[id]);if(pending.rows.length)throw new HttpError(409,'Wait for pending operations before deleting this mission.');await q('DELETE FROM missions WHERE id=$1 AND owner_id=$2 AND workspace_id=$3',[id,scope(req).ownerId,scope(req).workspaceId]);});res.json({deleted:true,externalTasksDeleted:false});});
   // Fixture pages are explicit test material; never inject a page bridge into arbitrary websites.
   app.use('/fixtures',express.static(resolve(repoRoot,'fixtures'),{index:'requirements.html'}));
-  if(options?.enableCopilot!==false&&selectedModel.enabled){
+  if(options?.enableCopilot!==false&&selectedModel.enabled&&!runtime.publicDemoEnabled){
     const {CopilotRuntime,BuiltInAgent,InMemoryAgentRunner}=await import('@copilotkit/runtime/v2');const {createCopilotExpressHandler}=await import('@copilotkit/runtime/v2/express');
     const runtime=new CopilotRuntime({agents:{default:new BuiltInAgent({model:createRuntimeModel(selectedModel),prompt:SAFETY_PROMPT,maxSteps:1,maxOutputTokens:1800,maxRetries:0,providerOptions:{openai:{store:false}}})},runner:new InMemoryAgentRunner({maxThreads:20,maxRunsPerThread:20,maxBytes:16*1024*1024,onConcurrentRun:'throw'}),openGenerativeUI:false});
     const copilotRouter=createCopilotExpressHandler({runtime,basePath:'/api/copilotkit',cors:false,activateChannels:false});
     // Runtime 1.70.3 exports Express 4 Router types; its Node request/response
     // middleware is compatible with our Express 5 host. Keep this adaptation at the mount.
     app.use(copilotRouter as unknown as express.RequestHandler);
-  }else app.use('/api/copilotkit',(_req,res)=>res.status(503).json({error:`CopilotKit live conversation requires MODEL_MODE=live and a server-side ${selectedModel.apiKeyEnv}. The fixture workflow is available through explicit review controls.`}));
+  }else app.use('/api/copilotkit',(_req,res)=>res.status(503).json({error:runtime.publicDemoEnabled?'Free-form model conversation is disabled in the bounded public demo. Use the launch review workflow.':`CopilotKit live conversation requires MODEL_MODE=live and a server-side ${selectedModel.apiKeyEnv}. The fixture workflow is available through explicit review controls.`}));
+  if(runtime.deploymentMode==='hosted'&&options?.serveWeb!==false){
+    const webRoot=resolve(repoRoot,'apps/extension/dist-hosted');
+    app.use(express.static(webRoot,{index:false,fallthrough:true}));
+    app.get(/^\/(?!api(?:\/|$)|health$|privacy$|fixtures(?:\/|$)).*/,(_req,res)=>res.sendFile(resolve(webRoot,'index.html')));
+  }
   app.use((error:unknown,_req:Request,res:Response,_next:NextFunction)=>{
     if(res.headersSent)return;
     if(error instanceof z.ZodError){res.status(422).json({error:'Some fields are invalid.',code:'validation_error',details:error.issues.map(i=>({path:i.path,message:i.message}))});return;}

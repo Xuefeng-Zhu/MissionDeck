@@ -193,7 +193,7 @@ private struct CaptureWindowMain {
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: command == "list")
         let windows = content.windows.filter {
             let bundle = $0.owningApplication?.bundleIdentifier ?? ""
-            return ["com.google.Chrome", "com.google.Chrome.canary", "com.google.Chrome.beta"].contains(bundle)
+            return ["com.google.Chrome", "com.google.Chrome.canary", "com.google.Chrome.beta", "com.google.chrome.for.testing"].contains(bundle)
                 && $0.windowLayer == 0 && $0.frame.width >= 300 && $0.frame.height >= 200
         }
         if command == "list" {
