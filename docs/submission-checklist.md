@@ -12,8 +12,8 @@ This checklist is based on the live Agents for Humans Devpost requirements fetch
 - [x] Architecture diagram source added at `docs/architecture.svg`.
 - [x] Upload-ready architecture diagram added at `docs/architecture.png`.
 - [x] Devpost text draft added at `devpost-submission.md`.
-- [ ] Merge/push the final build to the public default branch.
-- [ ] Verify the public repository includes all source/setup assets needed to run.
+- [x] Merge/push the Bedrock/Render build to the public default branch.
+- [x] Verify the public repository includes the source and setup assets needed to run.
 - [x] Verify the public repository exposes the root **MIT License**.
 - [ ] Upload `docs/architecture.png` to the required architecture field.
 - [ ] Add the user-controlled AWS Builder ID.

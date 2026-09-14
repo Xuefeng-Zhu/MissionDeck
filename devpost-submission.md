@@ -129,11 +129,10 @@ Do not show pairing codes, tokens, `.env` contents, private provider data, or un
 
 ## Submission Readiness Notes
 
-Current local packet includes the MIT license, README, editable architecture SVG, upload-ready architecture PNG, Devpost copy, evidence matrix, and final checklist. An existing Devpost pre-draft is still untitled and has not been submitted.
+The verified Bedrock/Render build is published on the public repository's default branch. The packet includes the MIT license, README, editable architecture SVG, upload-ready architecture PNG, Devpost copy, evidence matrix, and final checklist. An existing Devpost pre-draft is still untitled and has not been submitted.
 
 Still required before the final Devpost action:
 
-- publish/merge the submission build to the public repository's default branch;
 - upload the architecture PNG in the required file field;
 - add the AWS Builder ID;
 - publish the final video on YouTube or Vimeo and confirm public playback;

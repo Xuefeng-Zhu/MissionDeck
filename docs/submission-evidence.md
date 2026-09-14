@@ -42,7 +42,7 @@ Complete this table on the exact public submission commit.
 
 | Evidence | Required record | Status |
 | --- | --- | --- |
-| Public source | Default-branch commit SHA, public URL, MIT license detected | Review branch and public MIT file ready; default-branch merge TODO |
+| Public source | Default-branch commit SHA, public URL, MIT license detected | Bedrock/Render build is on public `main` and the MIT file is exposed; record the final SHA after any last submission patch |
 | Unit/integration | Command, test count, timestamp, exit 0 | Ready locally: 403/403 across 39 files on September 14, 2026 |
 | Production build | Command, timestamp, exit 0, warnings summarized | Ready locally: typecheck, extension/server build, exact working-tree Docker image, fixture `/health`, and Render YAML passed; the private Copilot bundle retains existing large-chunk warnings |
 | Browser | Scenario count, surfaces, viewport(s), timestamp | Earlier controlled/fixture evidence: 6/6 adaptive plus 1/1 persisted execution at 1440×1000 and in the native Chrome side panel; rerun on the final public commit TODO |
